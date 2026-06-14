@@ -3,6 +3,11 @@
 # dependencies
 node_modules/
 
+# IDEs
+.vscode/
+.idea/
+*.iml
+
 # Expo
 .expo/
 dist/
@@ -39,3 +44,10 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+
+# Firebase
+google-services.json
+android/app/google-services.json
+GoogleService-Info.plist
+ios/GoogleService-Info.plist
