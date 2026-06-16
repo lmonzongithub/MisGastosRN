@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { View, Text, Button, TextInput } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity } from 'react-native';
 
 import { register } from '../services/authService';
+import { authStyles } from '../styles/authStyles';
 
 export default function RegisterScreen({ navigation }: any) {
   const [email, setEmail] = useState('');
@@ -18,49 +19,36 @@ export default function RegisterScreen({ navigation }: any) {
   };
 
   return (
-    <View
-      style={{
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        gap: 12,
-      }}
-    >
-      <Text>Registro</Text>
+    <View style={authStyles.container}>
+      <Text style={authStyles.title}>MisGastos</Text>
+      <Text style={authStyles.subtitle}>Crear cuenta</Text>
 
-      <TextInput
-        placeholder="Email"
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        style={{
-          width: 250,
-          borderWidth: 1,
-          padding: 8,
-        }}
-      />
+      <View style={authStyles.card}>
+        <TextInput
+          placeholder="Correo electrónico"
+          value={email}
+          onChangeText={setEmail}
+          autoCapitalize="none"
+          keyboardType="email-address"
+          style={authStyles.input}
+        />
 
-      <TextInput
-        placeholder="Contraseña"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        style={{
-          width: 250,
-          borderWidth: 1,
-          padding: 8,
-        }}
-      />
+        <TextInput
+          placeholder="Contraseña"
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+          style={authStyles.input}
+        />
 
-      <Button
-        title="Registrarse"
-        onPress={handleRegister}
-      />
+        <TouchableOpacity style={authStyles.button} onPress={handleRegister}>
+          <Text style={authStyles.buttonText}>Registrarse</Text>
+        </TouchableOpacity>
 
-      <Button
-        title="Volver al Login"
-        onPress={() => navigation.goBack()}
-      />
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text style={authStyles.link}>Ya tengo cuenta</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
