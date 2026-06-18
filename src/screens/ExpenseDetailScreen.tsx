@@ -4,7 +4,7 @@ import {
   Text,
   TouchableOpacity,
   Alert,
-  Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 
@@ -14,12 +14,15 @@ import {
   deleteExpense,
 } from '../services/expenseService';
 import { getCategoryLabel } from '../utils/categories';
+import ConfirmDeleteModal from '../components/ConfirmDeleteModal';
 
 export default function ExpenseDetailScreen({ route, navigation }: any) {
   const { expenseId } = route.params;
 
   const [expense, setExpense] = useState<Expense | null>(null);
   const [loading, setLoading] = useState(false);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const loadExpense = async () => {
     try {
@@ -56,45 +59,48 @@ export default function ExpenseDetailScreen({ route, navigation }: any) {
     return new Date(date).toLocaleDateString();
   };
 
-  const handleDelete = async () => {
+  const openDeleteModal = () => {
+    setDeleteModalVisible(true);
+  };
+
+  const closeDeleteModal = () => {
+    if (deleting) return;
+
+    setDeleteModalVisible(false);
+  };
+
+  const confirmDelete = async () => {
     if (!expense?.id) return;
 
-    const doDelete = async () => {
-      try {
-        await deleteExpense(expense.id);
-        navigation.goBack();
-      } catch (error) {
-        console.log(error);
-        Alert.alert('Error', 'No se pudo eliminar el gasto');
-      }
-    };
+    try {
+      setDeleting(true);
 
-    if (Platform.OS === 'web') {
-        await doDelete();
-        return;
+      await deleteExpense(expense.id);
+
+      setDeleteModalVisible(false);
+      navigation.goBack();
+    } catch (error) {
+      console.log(error);
+      Alert.alert('Error', 'No se pudo eliminar el gasto');
+    } finally {
+      setDeleting(false);
     }
-
-    Alert.alert(
-      'Eliminar gasto',
-      '¿Seguro que querés eliminar este gasto?',
-      [
-        {
-          text: 'Cancelar',
-          style: 'cancel',
-        },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: doDelete,
-        },
-      ]
-    );
   };
 
   if (loading || !expense) {
     return (
-      <View style={{ flex: 1, padding: 16, backgroundColor: '#FDF7FF' }}>
-        <Text>Cargando gasto...</Text>
+      <View
+        style={{
+          flex: 1,
+          padding: 16,
+          backgroundColor: '#FDF7FF',
+          justifyContent: 'center',
+          alignItems: 'center',
+          gap: 10,
+        }}
+      >
+        <ActivityIndicator size="large" />
+        <Text style={{ color: '#666666' }}>Cargando gasto...</Text>
       </View>
     );
   }
@@ -152,9 +158,14 @@ export default function ExpenseDetailScreen({ route, navigation }: any) {
       </View>
 
       <TouchableOpacity
-        onPress={() => navigation.navigate('ExpenseForm', { expenseId: expense.id })}
+        onPress={() =>
+          navigation.navigate('ExpenseForm', {
+            expenseId: expense.id,
+          })
+        }
+        disabled={deleting}
         style={{
-          backgroundColor: '#0B6B2B',
+          backgroundColor: deleting ? '#73A883' : '#0B6B2B',
           padding: 14,
           borderRadius: 10,
           alignItems: 'center',
@@ -167,9 +178,10 @@ export default function ExpenseDetailScreen({ route, navigation }: any) {
       </TouchableOpacity>
 
       <TouchableOpacity
-        onPress={handleDelete}
+        onPress={openDeleteModal}
+        disabled={deleting}
         style={{
-          backgroundColor: '#B00020',
+          backgroundColor: deleting ? '#C77986' : '#B00020',
           padding: 14,
           borderRadius: 10,
           alignItems: 'center',
@@ -183,6 +195,7 @@ export default function ExpenseDetailScreen({ route, navigation }: any) {
 
       <TouchableOpacity
         onPress={() => navigation.goBack()}
+        disabled={deleting}
         style={{
           padding: 14,
           alignItems: 'center',
@@ -193,6 +206,15 @@ export default function ExpenseDetailScreen({ route, navigation }: any) {
           Volver
         </Text>
       </TouchableOpacity>
+
+      <ConfirmDeleteModal
+        visible={deleteModalVisible}
+        loading={deleting}
+        title="Eliminar gasto"
+        message={`¿Seguro que querés eliminar este gasto? Esta acción no se puede deshacer.`}
+        onCancel={closeDeleteModal}
+        onConfirm={confirmDelete}
+      />
     </View>
   );
 }
