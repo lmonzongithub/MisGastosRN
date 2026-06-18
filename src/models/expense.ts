@@ -1,8 +1,12 @@
 export type Expense = {
-  id?: string;
-  description: string;
+  id: string;
   amount: number;
   category: string;
+  description: string;
   date: number;
-  userId: string;
+  imageUrl?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  createdAt?: number;
+  updatedAt?: number;
 };

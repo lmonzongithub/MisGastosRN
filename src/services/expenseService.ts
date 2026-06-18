@@ -3,51 +3,116 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   orderBy,
   query,
   updateDoc,
-  where,
 } from 'firebase/firestore';
 
-import { getFirestore } from 'firebase/firestore';
-import app from './firebase';
+import { auth, db } from './firebase';
 import { Expense } from '../models/expense';
 
-const db = getFirestore(app);
+function getCurrentUserId(): string {
+  const userId = auth.currentUser?.uid;
 
-const EXPENSES_COLLECTION = 'expenses';
+  if (!userId) {
+    throw new Error('Usuario no autenticado');
+  }
 
-export const createExpense = async (expense: Expense) => {
-  return addDoc(collection(db, EXPENSES_COLLECTION), expense);
+  return userId;
+}
+
+function getExpensesCollectionRef() {
+  const userId = getCurrentUserId();
+  return collection(db, 'usuarios', userId, 'gastos');
+}
+
+export const createExpense = async (
+  expense: Omit<Expense, 'id'>
+) => {
+  const expensesRef = getExpensesCollectionRef();
+
+  const now = Date.now();
+
+  return addDoc(expensesRef, {
+    ...expense,
+    createdAt: now,
+    updatedAt: now,
+  });
 };
 
-export const getExpensesByUser = async (userId: string) => {
+export const getExpensesByUser = async () => {
+  const expensesRef = getExpensesCollectionRef();
+
   const q = query(
-    collection(db, EXPENSES_COLLECTION),
-    where('userId', '==', userId),
-   
+    expensesRef,
+    orderBy('date', 'desc')
   );
 
   const snapshot = await getDocs(q);
 
-  const expenses= snapshot.docs.map((docItem) => ({
+  return snapshot.docs.map((docItem) => ({
     id: docItem.id,
     ...docItem.data(),
   })) as Expense[];
+};
 
-  return expenses.sort((a, b) => b.date - a.date);
+export const getExpenseById = async (
+  id: string
+): Promise<Expense | null> => {
+  const userId = getCurrentUserId();
+
+  const expenseRef = doc(db, 'usuarios', userId, 'gastos', id);
+  const snapshot = await getDoc(expenseRef);
+
+  if (!snapshot.exists()) {
+    return null;
+  }
+
+  return {
+    id: snapshot.id,
+    ...snapshot.data(),
+  } as Expense;
 };
 
 export const updateExpense = async (
   id: string,
   expense: Partial<Expense>
 ) => {
-  const expenseRef = doc(db, EXPENSES_COLLECTION, id);
-  return updateDoc(expenseRef, expense);
+  const userId = getCurrentUserId();
+
+  const expenseRef = doc(db, 'usuarios', userId, 'gastos', id);
+
+  return updateDoc(expenseRef, {
+    ...expense,
+    updatedAt: Date.now(),
+  });
 };
 
 export const deleteExpense = async (id: string) => {
-  const expenseRef = doc(db, EXPENSES_COLLECTION, id);
+  const userId = getCurrentUserId();
+
+  const expenseRef = doc(db, 'usuarios', userId, 'gastos', id);
+
   return deleteDoc(expenseRef);
+};
+
+export const getMonthlyTotal = async (): Promise<number> => {
+  const expenses = await getExpensesByUser();
+
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+
+  return expenses
+    .filter((expense) => {
+      const expenseDate = new Date(expense.date);
+
+      return (
+        expenseDate.getMonth() === currentMonth &&
+        expenseDate.getFullYear() === currentYear
+      );
+    })
+    .reduce((total, expense) => total + expense.amount, 0);
 };
