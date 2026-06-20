@@ -9,4 +9,8 @@ export type Expense = {
   longitude?: number | null;
   createdAt?: number;
   updatedAt?: number;
+  receiptUrl?: string | null;
+  receiptName?: string | null;
+  receiptType?: string | null;
+  receiptPath?: string | null;
 };

@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import { Expense } from '../models/expense';
 import {
   getExpensesByUser,
   deleteExpense,
+  getMonthlyTotal,
 } from '../services/expenseService';
 import { getCategoryLabel } from '../utils/categories';
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal';
@@ -23,13 +24,19 @@ export default function ExpenseListScreen({ navigation }: any) {
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [monthlyTotal, setMonthlyTotal] = useState(0);
 
   const loadExpenses = async () => {
     try {
       setLoading(true);
 
-      const data = await getExpensesByUser();
+      const [data, total] = await Promise.all([
+        getExpensesByUser(),
+        getMonthlyTotal(),
+      ]);
+
       setExpenses(data);
+      setMonthlyTotal(total);
     } catch (error) {
       console.log(error);
       Alert.alert('Error', 'No se pudieron cargar los gastos');
@@ -75,9 +82,30 @@ export default function ExpenseListScreen({ navigation }: any) {
     }
   };
 
+  const monthlyExpenseCount = useMemo(() => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    return expenses.filter((expense) => {
+      const expenseDate = new Date(expense.date);
+
+      return (
+        expenseDate.getMonth() === currentMonth &&
+        expenseDate.getFullYear() === currentYear
+      );
+    }).length;
+  }, [expenses]);
+
   const formatAmount = (amount: number) => {
     return `$ ${amount.toFixed(2)}`;
   };
+
+  const expenseCountText =
+    monthlyExpenseCount === 1
+      ? '1 gasto registrado'
+      : `${monthlyExpenseCount} gastos registrados`;
+
 
   return (
     <View style={{ flex: 1, padding: 16, backgroundColor: '#FDF7FF' }}>
@@ -91,6 +119,46 @@ export default function ExpenseListScreen({ navigation }: any) {
       >
         Mis Gastos
       </Text>
+
+      <View
+        style={{
+          backgroundColor: '#FFFFFF',
+          borderWidth: 1,
+          borderColor: '#E6E0EA',
+          borderRadius: 14,
+          padding: 16,
+          marginBottom: 16,
+        }}
+      >
+        <Text
+          style={{
+            color: '#666666',
+            fontSize: 14,
+            marginBottom: 4,
+          }}
+        >
+          Gastos del mes
+        </Text>
+
+        <Text
+          style={{
+            color: '#0B6B2B',
+            fontSize: 24,
+            fontWeight: 'bold',
+          }}
+        >
+          {formatAmount(monthlyTotal)}
+        </Text>
+
+        <Text
+          style={{
+            color: '#666666',
+            marginTop: 6,
+          }}
+        >
+          {expenseCountText}
+        </Text>
+      </View>
 
       <TouchableOpacity
         onPress={() => navigation.navigate('ExpenseForm')}
@@ -131,9 +199,49 @@ export default function ExpenseListScreen({ navigation }: any) {
           refreshing={loading}
           onRefresh={loadExpenses}
           ListEmptyComponent={
-            <Text style={{ color: '#666666' }}>
-              No hay gastos cargados.
-            </Text>
+            <View
+              style={{
+                alignItems: 'center',
+                padding: 24,
+                borderWidth: 1,
+                borderColor: '#E6E0EA',
+                borderRadius: 14,
+                backgroundColor: '#FFFFFF',
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 18,
+                  fontWeight: 'bold',
+                  color: '#1F1F1F',
+                  marginBottom: 6,
+                }}
+              >
+                Todavía no hay gastos
+              </Text>
+              <Text
+                style={{
+                  color: '#666666',
+                  textAlign: 'center',
+                }}
+              >
+                Tocá “Nuevo gasto” para registrar el primero.
+              </Text>
+            </View>
+          }
+          ListFooterComponent={
+            loading && expenses.length > 0 ? (
+              <View
+                style={{
+                  paddingVertical: 16,
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                <ActivityIndicator />
+                <Text style={{ color: '#666666' }}>Actualizando gastos...</Text>
+              </View>
+            ) : null
           }
           renderItem={({ item }) => (
             <View

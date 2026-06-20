@@ -5,6 +5,8 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Image,
+  Linking,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 
@@ -104,6 +106,26 @@ export default function ExpenseDetailScreen({ route, navigation }: any) {
       </View>
     );
   }
+  
+  const receiptUrl = expense.receiptUrl ?? expense.imageUrl;
+const receiptName = expense.receiptName ?? 'Comprobante adjunto';
+
+const isImageReceipt =
+  !!receiptUrl &&
+  (expense.receiptType?.startsWith('image/') || !!expense.imageUrl);
+  const openReceipt = async () => {
+  const receiptUrl = expense?.receiptUrl ?? expense?.imageUrl;
+
+  if (!receiptUrl) return;
+
+  try {
+    await Linking.openURL(receiptUrl);
+  } catch (error) {
+    console.log(error);
+    Alert.alert('Error', 'No se pudo abrir el comprobante');
+  }
+};
+
 
   return (
     <View style={{ flex: 1, padding: 16, backgroundColor: '#FDF7FF' }}>
@@ -156,7 +178,48 @@ export default function ExpenseDetailScreen({ route, navigation }: any) {
         </Text>
         <Text>{formatDate(expense.date)}</Text>
       </View>
+      
+      <Text style={{ fontSize: 16, fontWeight: 'bold', marginTop: 8 }}>
+  Comprobante
+</Text>
 
+{receiptUrl ? (
+  <View style={{ gap: 10 }}>
+    <Text>{receiptName}</Text>
+
+    {isImageReceipt && (
+      <Image
+        source={{ uri: receiptUrl }}
+        style={{
+          width: '100%',
+          height: 180,
+          borderRadius: 10,
+          backgroundColor: '#F1EDF5',
+        }}
+        resizeMode="cover"
+      />
+    )}
+
+    <TouchableOpacity
+      onPress={openReceipt}
+      style={{
+        borderWidth: 1,
+        borderColor: '#0B6B2B',
+        padding: 12,
+        borderRadius: 10,
+        alignItems: 'center',
+      }}
+    >
+      <Text style={{ color: '#0B6B2B', fontWeight: 'bold' }}>
+        Abrir comprobante
+      </Text>
+    </TouchableOpacity>
+  </View>
+) : (
+  <Text style={{ color: '#666666' }}>
+    Este gasto no tiene comprobante adjunto.
+  </Text>
+)}
       <TouchableOpacity
         onPress={() =>
           navigation.navigate('ExpenseForm', {
