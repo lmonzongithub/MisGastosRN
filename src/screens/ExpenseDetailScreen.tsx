@@ -17,6 +17,7 @@ import {
 } from '../services/expenseService';
 import { getCategoryLabel } from '../utils/categories';
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal';
+import MapView, { Marker } from 'react-native-maps';
 
 export default function ExpenseDetailScreen({ route, navigation }: any) {
   const { expenseId } = route.params;
@@ -127,6 +128,10 @@ const isImageReceipt =
 };
 
 
+const hasLocation =
+  typeof expense.latitude === 'number' &&
+  typeof expense.longitude === 'number';
+
   return (
     <View style={{ flex: 1, padding: 16, backgroundColor: '#FDF7FF' }}>
       <Text
@@ -218,6 +223,45 @@ const isImageReceipt =
 ) : (
   <Text style={{ color: '#666666' }}>
     Este gasto no tiene comprobante adjunto.
+  </Text>
+)}
+
+<Text style={{ fontSize: 16, fontWeight: 'bold', marginTop: 8 }}>
+  Ubicación
+</Text>
+
+{hasLocation ? (
+  <View style={{ gap: 10 }}>
+    <Text style={{ color: '#666666' }}>
+      Lat: {expense.latitude?.toFixed(6)} · Lng:{' '}
+      {expense.longitude?.toFixed(6)}
+    </Text>
+
+    <MapView
+      style={{
+        width: '100%',
+        height: 220,
+        borderRadius: 12,
+      }}
+      initialRegion={{
+        latitude: expense.latitude!,
+        longitude: expense.longitude!,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      }}
+    >
+      <Marker
+        coordinate={{
+          latitude: expense.latitude!,
+          longitude: expense.longitude!,
+        }}
+        title={expense.description}
+      />
+    </MapView>
+  </View>
+) : (
+  <Text style={{ color: '#666666' }}>
+    Este gasto no tiene ubicación guardada.
   </Text>
 )}
       <TouchableOpacity
