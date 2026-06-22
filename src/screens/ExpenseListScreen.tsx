@@ -15,6 +15,10 @@ import {
   deleteExpense,
   getMonthlyTotal,
 } from '../services/expenseService';
+import {
+  getUserSettings,
+  UserSettings,
+} from '../services/settingsService';
 import { getCategoryLabel } from '../utils/categories';
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal';
 
@@ -26,17 +30,24 @@ export default function ExpenseListScreen({ navigation }: any) {
   const [deleting, setDeleting] = useState(false);
   const [monthlyTotal, setMonthlyTotal] = useState(0);
 
+  const [settings, setSettings] = useState<UserSettings>({
+    monthlyLimit: 0,
+    notificationsEnabled: false,
+  });
+
   const loadExpenses = async () => {
     try {
       setLoading(true);
 
-      const [data, total] = await Promise.all([
+      const [data, total, userSettings] = await Promise.all([
         getExpensesByUser(),
         getMonthlyTotal(),
+        getUserSettings(),
       ]);
 
       setExpenses(data);
       setMonthlyTotal(total);
+      setSettings(userSettings);
     } catch (error) {
       console.log(error);
       Alert.alert('Error', 'No se pudieron cargar los gastos');
@@ -106,6 +117,12 @@ export default function ExpenseListScreen({ navigation }: any) {
       ? '1 gasto registrado'
       : `${monthlyExpenseCount} gastos registrados`;
 
+  const hasMonthlyLimit = settings.monthlyLimit > 0;
+
+  const monthlyLimitExceeded =
+    hasMonthlyLimit &&
+    settings.notificationsEnabled &&
+    monthlyTotal > settings.monthlyLimit;
 
   return (
     <View style={{ flex: 1, padding: 16, backgroundColor: '#FDF7FF' }}>
@@ -124,7 +141,7 @@ export default function ExpenseListScreen({ navigation }: any) {
         style={{
           backgroundColor: '#FFFFFF',
           borderWidth: 1,
-          borderColor: '#E6E0EA',
+          borderColor: monthlyLimitExceeded ? '#B00020' : '#E6E0EA',
           borderRadius: 14,
           padding: 16,
           marginBottom: 16,
@@ -142,7 +159,7 @@ export default function ExpenseListScreen({ navigation }: any) {
 
         <Text
           style={{
-            color: '#0B6B2B',
+            color: monthlyLimitExceeded ? '#B00020' : '#0B6B2B',
             fontSize: 24,
             fontWeight: 'bold',
           }}
@@ -158,6 +175,58 @@ export default function ExpenseListScreen({ navigation }: any) {
         >
           {expenseCountText}
         </Text>
+
+        {hasMonthlyLimit && (
+          <Text
+            style={{
+              color: monthlyLimitExceeded ? '#B00020' : '#666666',
+              marginTop: 8,
+              fontWeight: monthlyLimitExceeded ? 'bold' : 'normal',
+            }}
+          >
+            Límite mensual: {formatAmount(settings.monthlyLimit)}
+          </Text>
+        )}
+
+        {hasMonthlyLimit && !settings.notificationsEnabled && (
+          <Text
+            style={{
+              color: '#666666',
+              marginTop: 8,
+            }}
+          >
+            Alertas por límite desactivadas
+          </Text>
+        )}
+
+        {monthlyLimitExceeded && (
+          <View
+            style={{
+              backgroundColor: '#FCE8EC',
+              borderRadius: 10,
+              padding: 10,
+              marginTop: 12,
+            }}
+          >
+            <Text
+              style={{
+                color: '#B00020',
+                fontWeight: 'bold',
+              }}
+            >
+              Superaste tu límite mensual
+            </Text>
+
+            <Text
+              style={{
+                color: '#B00020',
+                marginTop: 4,
+              }}
+            >
+              Revisá tus gastos o ajustá el límite desde Configuración.
+            </Text>
+          </View>
+        )}
       </View>
 
       <TouchableOpacity
@@ -219,6 +288,7 @@ export default function ExpenseListScreen({ navigation }: any) {
               >
                 Todavía no hay gastos
               </Text>
+
               <Text
                 style={{
                   color: '#666666',
@@ -239,7 +309,9 @@ export default function ExpenseListScreen({ navigation }: any) {
                 }}
               >
                 <ActivityIndicator />
-                <Text style={{ color: '#666666' }}>Actualizando gastos...</Text>
+                <Text style={{ color: '#666666' }}>
+                  Actualizando gastos...
+                </Text>
               </View>
             ) : null
           }
@@ -340,7 +412,7 @@ export default function ExpenseListScreen({ navigation }: any) {
         title="Eliminar gasto"
         message={
           expenseToDelete
-            ? `¿Seguro que querés eliminar este gasto? Esta acción no se puede deshacer.`
+            ? '¿Seguro que querés eliminar este gasto? Esta acción no se puede deshacer.'
             : '¿Seguro que querés eliminar este gasto?'
         }
         onCancel={closeDeleteModal}

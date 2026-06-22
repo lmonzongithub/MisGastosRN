@@ -18,7 +18,7 @@ export default function HomeTabs() {
         component={HistoryScreen}
       />
       <Tab.Screen
-        name="Settings"
+        name="Configuración"
         component={SettingsScreen}
       />
     </Tab.Navigator>
