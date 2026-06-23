@@ -1,16 +1,8 @@
 import { Platform } from 'react-native';
-import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 
 const CHANNEL_ID = 'expense_alerts_channel';
-
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
+const isExpoGo = Constants.appOwnership === 'expo';
 
 function formatMoney(value: number) {
   return `$ ${value.toFixed(2)}`;
@@ -18,8 +10,24 @@ function formatMoney(value: number) {
 
 export async function setupExpenseNotifications() {
   if (Platform.OS === 'web') {
+    return true;
+  }
+
+  if (isExpoGo) {
+    console.log('Notificaciones omitidas en Expo Go');
     return false;
   }
+
+  const Notifications = await import('expo-notifications');
+
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+    }),
+  });
 
   const currentPermissions = await Notifications.getPermissionsAsync();
 
@@ -55,19 +63,23 @@ export async function showLimitExceededNotification(
     return;
   }
 
+  if (isExpoGo) {
+    console.log('Notificación omitida en Expo Go');
+    return;
+  }
+
+  const Notifications = await import('expo-notifications');
+
   const hasPermission = await setupExpenseNotifications();
 
   if (!hasPermission) {
     return;
   }
 
-  const monthlyTotalFormatted = formatMoney(monthlyTotal);
-  const monthlyLimitFormatted = formatMoney(monthlyLimit);
-
   await Notifications.scheduleNotificationAsync({
     content: {
       title: 'Límite mensual superado',
-      body: `Superaste tu límite mensual de gastos. Total actual: ${monthlyTotalFormatted}. Límite configurado: ${monthlyLimitFormatted}.`,
+      body: `Superaste tu límite mensual de gastos. Total actual: ${formatMoney(monthlyTotal)}. Límite configurado: ${formatMoney(monthlyLimit)}.`,
       data: {
         monthlyTotal,
         monthlyLimit,
