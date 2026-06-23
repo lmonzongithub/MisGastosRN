@@ -2,12 +2,14 @@ import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   ScrollView,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import * as Print from 'expo-print';
 
 import { Expense } from '../models/expense';
 import { getExpensesByUser } from '../services/expenseService';
@@ -17,15 +19,21 @@ import {
   getCategoryLabel,
   normalizeCategory,
 } from '../utils/categories';
-
-import * as Print from 'expo-print';
-import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system/legacy';
+import InfoModal from '../components/InfoModal';
 
 type FilterCategory = 'ALL' | ExpenseCategoryCode;
 
 function formatMoney(value: number) {
   return `$ ${value.toFixed(2)}`;
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
 }
 
 function isSameMonth(timestamp: number, selectedDate: Date) {
@@ -44,6 +52,60 @@ function getMonthLabel(date: Date) {
   });
 }
 
+function formatDateForFileName(date: Date) {
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+
+  return `${day}-${month}-${year}`;
+}
+
+function normalizeForFileName(value: string) {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, '-');
+}
+
+function getPdfFileName(selectedMonth: Date, categoryLabel: string) {
+  const today = formatDateForFileName(new Date());
+  const monthLabel = normalizeForFileName(getMonthLabel(selectedMonth));
+  const normalizedCategory = normalizeForFileName(categoryLabel);
+
+  return `historial-${monthLabel}-${normalizedCategory}-${today}`;
+}
+
+async function printReportHtml(html: string, fileName: string) {
+  if (Platform.OS === 'web') {
+    const printWindow = window.open('', '_blank');
+
+    if (!printWindow) {
+      Alert.alert(
+        'PDF',
+        'No se pudo abrir la ventana de impresión. Revisá si el navegador bloqueó ventanas emergentes.'
+      );
+      return;
+    }
+
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+
+    printWindow.document.title = fileName;
+
+    printWindow.onload = () => {
+      printWindow.document.title = fileName;
+      printWindow.focus();
+      printWindow.print();
+    };
+
+    return;
+  }
+
+  await Print.printAsync({ html });
+}
+
 export default function HistoryScreen() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(false);
@@ -51,9 +113,14 @@ export default function HistoryScreen() {
   const [selectedCategory, setSelectedCategory] =
     useState<FilterCategory>('ALL');
 
+  const [infoModalVisible, setInfoModalVisible] = useState(false);
+  const [infoModalTitle, setInfoModalTitle] = useState('');
+  const [infoModalMessage, setInfoModalMessage] = useState('');
+
   const loadExpenses = async () => {
     try {
       setLoading(true);
+
       const data = await getExpensesByUser();
       setExpenses(data);
     } catch (error) {
@@ -71,7 +138,9 @@ export default function HistoryScreen() {
   );
 
   const monthlyExpenses = useMemo(() => {
-    return expenses.filter((expense) => isSameMonth(expense.date, selectedMonth));
+    return expenses.filter((expense) =>
+      isSameMonth(expense.date, selectedMonth)
+    );
   }, [expenses, selectedMonth]);
 
   const filteredExpenses = useMemo(() => {
@@ -120,171 +189,228 @@ export default function HistoryScreen() {
     });
   };
 
+  const showInfoModal = (title: string, message: string) => {
+    setInfoModalTitle(title);
+    setInfoModalMessage(message);
+    setInfoModalVisible(true);
+  };
+
   const handleExportPdf = async () => {
-  try {
-    const categoryRows = categorySummary
-      .map(
-        (item) => `
-          <tr>
-            <td>${item.label}</td>
-            <td class="right">${formatMoney(item.total)}</td>
-          </tr>
-        `
-      )
-      .join('');
+    try {
+      if (filteredExpenses.length === 0) {
+        const categoryLabel =
+          selectedCategory === 'ALL'
+            ? 'la selección actual'
+            : getCategoryLabel(selectedCategory);
 
-    const expenseRows = filteredExpenses
-      .map(
-        (expense) => `
-          <tr>
-            <td>${new Date(expense.date).toLocaleDateString('es-AR')}</td>
-            <td>${expense.description}</td>
-            <td>${getCategoryLabel(expense.category)}</td>
-            <td class="right">${formatMoney(expense.amount)}</td>
-          </tr>
-        `
-      )
-      .join('');
+        showInfoModal(
+          'No hay gastos para exportar',
+          `No hay gastos cargados para ${categoryLabel} en ${getMonthLabel(selectedMonth)}. Probá seleccionando otra categoría o cambiando de mes.`
+        );
 
-    const html = `
-      <html>
-        <head>
-          <meta charset="utf-8" />
-          <style>
-            body {
-              font-family: Arial, sans-serif;
-              padding: 24px;
-              color: #1F1F1F;
+        return;
+      }
+
+      const categoryLabel =
+        selectedCategory === 'ALL'
+          ? 'Todas'
+          : getCategoryLabel(selectedCategory);
+
+      const fileName = getPdfFileName(selectedMonth, categoryLabel);
+
+      const categoryRows = categorySummary
+        .map(
+          (item) => `
+            <tr>
+              <td>${escapeHtml(item.label)}</td>
+              <td class="right">${formatMoney(item.total)}</td>
+            </tr>
+          `
+        )
+        .join('');
+
+      const expenseRows = filteredExpenses
+        .map(
+          (expense) => `
+            <tr>
+              <td>${new Date(expense.date).toLocaleDateString('es-AR')}</td>
+              <td>${escapeHtml(expense.description)}</td>
+              <td>${getCategoryLabel(expense.category)}</td>
+              <td class="right">${formatMoney(expense.amount)}</td>
+            </tr>
+          `
+        )
+        .join('');
+
+      const html = `
+        <html>
+          <head>
+            <meta charset="utf-8" />
+            <title>${fileName}</title>
+
+            <style>
+              body {
+                font-family: Arial, sans-serif;
+                padding: 24px;
+                color: #1F1F1F;
+              }
+
+              h1 {
+                color: #0B6B2B;
+                margin-bottom: 4px;
+              }
+
+              h2 {
+                margin-top: 28px;
+                color: #1F1F1F;
+                border-bottom: 1px solid #ddd;
+                padding-bottom: 6px;
+              }
+
+              .subtitle {
+                color: #666;
+                margin-bottom: 24px;
+              }
+
+              .summary {
+                background: #E7F3EA;
+                border: 1px solid #0B6B2B;
+                border-radius: 8px;
+                padding: 16px;
+                margin-bottom: 20px;
+              }
+
+              .summary-title {
+                font-size: 16px;
+                font-weight: bold;
+                color: #0B6B2B;
+                margin-bottom: 12px;
+              }
+
+              .summary-row {
+                display: flex;
+                justify-content: space-between;
+                border-bottom: 1px solid #C9E5D0;
+                padding: 8px 0;
+              }
+
+              .summary-row:last-child {
+                border-bottom: none;
+              }
+
+              .summary-row strong {
+                color: #0B6B2B;
+              }
+
+              table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 10px;
+              }
+
+              th {
+                text-align: left;
+                background: #0B6B2B;
+                color: white;
+                padding: 8px;
+                font-size: 13px;
+              }
+
+              td {
+                padding: 8px;
+                border-bottom: 1px solid #ddd;
+                font-size: 13px;
+              }
+
+              .right {
+                text-align: right;
+              }
+
+              .empty {
+                color: #666;
+                font-style: italic;
+              }
+            </style>
+          </head>
+
+          <body>
+            <h1>Historial de gastos</h1>
+
+            <div class="subtitle">
+              Mes: ${getMonthLabel(selectedMonth)}<br />
+              Categoría: ${categoryLabel}
+            </div>
+
+            <div class="summary">
+              <div class="summary-title">Resumen del reporte</div>
+
+              <div class="summary-row">
+                <span>Total del mes</span>
+                <strong>${formatMoney(monthlyTotal)}</strong>
+              </div>
+
+              ${
+                selectedCategory !== 'ALL'
+                  ? `
+                    <div class="summary-row">
+                      <span>Total filtrado</span>
+                      <strong>${formatMoney(filteredTotal)}</strong>
+                    </div>
+                  `
+                  : ''
+              }
+
+              <div class="summary-row">
+                <span>Cantidad de gastos exportados</span>
+                <strong>${filteredExpenses.length}</strong>
+              </div>
+            </div>
+
+            <h2>Resumen por categoría</h2>
+
+            ${
+              categorySummary.length === 0
+                ? `<p class="empty">No hay gastos para resumir.</p>`
+                : `
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Categoría</th>
+                        <th class="right">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${categoryRows}
+                    </tbody>
+                  </table>
+                `
             }
 
-            h1 {
-              color: #0B6B2B;
-              margin-bottom: 4px;
-            }
+            <h2>Detalle de gastos</h2>
 
-            h2 {
-              margin-top: 28px;
-              color: #1F1F1F;
-              border-bottom: 1px solid #ddd;
-              padding-bottom: 6px;
-            }
+            <table>
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Descripción</th>
+                  <th>Categoría</th>
+                  <th class="right">Monto</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${expenseRows}
+              </tbody>
+            </table>
+          </body>
+        </html>
+      `;
 
-            .subtitle {
-              color: #666;
-              margin-bottom: 24px;
-            }
-
-            .summary {
-              background: #E7F3EA;
-              border: 1px solid #0B6B2B;
-              border-radius: 8px;
-              padding: 16px;
-              margin-bottom: 20px;
-            }
-
-            .summary-total {
-              font-size: 28px;
-              font-weight: bold;
-              color: #0B6B2B;
-            }
-
-            table {
-              width: 100%;
-              border-collapse: collapse;
-              margin-top: 10px;
-            }
-
-            th {
-              text-align: left;
-              background: #0B6B2B;
-              color: white;
-              padding: 8px;
-              font-size: 13px;
-            }
-
-            td {
-              padding: 8px;
-              border-bottom: 1px solid #ddd;
-              font-size: 13px;
-            }
-
-            .right {
-              text-align: right;
-            }
-
-            .empty {
-              color: #666;
-              font-style: italic;
-            }
-          </style>
-        </head>
-
-        <body>
-          <h1>Historial de gastos</h1>
-
-          <div class="subtitle">
-            Mes: ${getMonthLabel(selectedMonth)}
-          </div>
-
-          <div class="summary">
-            <div>Gastos del mes</div>
-            <div class="summary-total">${formatMoney(monthlyTotal)}</div>
-            <div>${monthlyExpenses.length} gastos registrados</div>
-          </div>
-
-          <h2>Resumen por categoría</h2>
-
-          ${
-            categorySummary.length === 0
-              ? `<p class="empty">No hay gastos para resumir.</p>`
-              : `
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Categoría</th>
-                      <th class="right">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${categoryRows}
-                  </tbody>
-                </table>
-              `
-          }
-
-          <h2>Detalle de gastos</h2>
-
-          ${
-            filteredExpenses.length === 0
-              ? `<p class="empty">No hay gastos para este filtro.</p>`
-              : `
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Fecha</th>
-                      <th>Descripción</th>
-                      <th>Categoría</th>
-                      <th class="right">Monto</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${expenseRows}
-                  </tbody>
-                </table>
-              `
-          }
-        </body>
-      </html>
-    `;
-
-   await Print.printAsync({
-  html,
-});
-  } catch (error) {
-    console.log(error);
-    Alert.alert('Error', 'No se pudo exportar el PDF');
-  }
-};
+      await printReportHtml(html, fileName);
+    } catch (error) {
+      console.log(error);
+      Alert.alert('Error', 'No se pudo exportar el PDF');
+    }
+  };
 
   return (
     <ScrollView
@@ -362,21 +488,21 @@ export default function HistoryScreen() {
       </View>
 
       <TouchableOpacity
-  onPress={handleExportPdf}
-  disabled={loading}
-  style={{
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#0B6B2B',
-    padding: 14,
-    borderRadius: 10,
-    alignItems: 'center',
-  }}
->
-  <Text style={{ color: '#0B6B2B', fontWeight: 'bold' }}>
-    Exportar PDF
-  </Text>
-</TouchableOpacity>
+        onPress={handleExportPdf}
+        disabled={loading}
+        style={{
+          backgroundColor: '#FFFFFF',
+          borderWidth: 1,
+          borderColor: '#0B6B2B',
+          padding: 14,
+          borderRadius: 10,
+          alignItems: 'center',
+        }}
+      >
+        <Text style={{ color: '#0B6B2B', fontWeight: 'bold' }}>
+          Exportar PDF
+        </Text>
+      </TouchableOpacity>
 
       <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#1F1F1F' }}>
         Filtrar por categoría
@@ -476,7 +602,7 @@ export default function HistoryScreen() {
         Gastos
       </Text>
 
-      {loading ? (
+            {loading ? (
         <ActivityIndicator size="large" color="#0B6B2B" />
       ) : filteredExpenses.length === 0 ? (
         <View
@@ -520,6 +646,13 @@ export default function HistoryScreen() {
           </View>
         ))
       )}
+
+      <InfoModal
+        visible={infoModalVisible}
+        title={infoModalTitle}
+        message={infoModalMessage}
+        onClose={() => setInfoModalVisible(false)}
+      />
     </ScrollView>
   );
 }
