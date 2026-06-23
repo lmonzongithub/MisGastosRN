@@ -9,12 +9,16 @@ import {
   ScrollView,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import * as Location from 'expo-location';
 
 import {
   createExpense,
   getExpenseById,
+  getMonthlyTotal,
   updateExpense,
 } from '../services/expenseService';
+import { getUserSettings } from '../services/settingsService';
+import { showLimitExceededNotification } from '../services/notificationService';
 import {
   EXPENSE_CATEGORIES,
   ExpenseCategoryCode,
@@ -22,7 +26,6 @@ import {
   normalizeCategory,
 } from '../utils/categories';
 import { uploadReceipt, ReceiptFile } from '../services/receiptService';
-import * as Location from 'expo-location';
 
 export default function ExpenseFormScreen({ route, navigation }: any) {
   const expenseId = route.params?.expenseId;
@@ -110,34 +113,59 @@ export default function ExpenseFormScreen({ route, navigation }: any) {
   };
 
   const handleUseCurrentLocation = async () => {
-  try {
-    setGettingLocation(true);
+    try {
+      setGettingLocation(true);
 
-    const { status } = await Location.requestForegroundPermissionsAsync();
+      const { status } = await Location.requestForegroundPermissionsAsync();
 
-    if (status !== 'granted') {
-      Alert.alert(
-        'Permiso denegado',
-        'Necesitamos permiso de ubicación para guardar dónde se hizo el gasto.'
-      );
-      return;
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permiso denegado',
+          'Necesitamos permiso de ubicación para guardar dónde se hizo el gasto.'
+        );
+        return;
+      }
+
+      const currentLocation = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+
+      setLatitude(currentLocation.coords.latitude);
+      setLongitude(currentLocation.coords.longitude);
+
+      Alert.alert('Ubicación guardada', 'Se guardó la ubicación actual.');
+    } catch (error) {
+      console.log(error);
+      Alert.alert('Error', 'No se pudo obtener la ubicación actual');
+    } finally {
+      setGettingLocation(false);
     }
+  };
 
-    const currentLocation = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.High,
-    });
+  const checkMonthlyLimitNotification = async () => {
+    try {
+      const settings = await getUserSettings();
 
-    setLatitude(currentLocation.coords.latitude);
-    setLongitude(currentLocation.coords.longitude);
+      if (!settings.notificationsEnabled) {
+        return;
+      }
 
-    Alert.alert('Ubicación guardada', 'Se guardó la ubicación actual.');
-  } catch (error) {
-    console.log(error);
-    Alert.alert('Error', 'No se pudo obtener la ubicación actual');
-  } finally {
-    setGettingLocation(false);
-  }
-};
+      if (settings.monthlyLimit <= 0) {
+        return;
+      }
+
+      const currentMonthlyTotal = await getMonthlyTotal();
+
+      if (currentMonthlyTotal > settings.monthlyLimit) {
+        await showLimitExceededNotification(
+          currentMonthlyTotal,
+          settings.monthlyLimit
+        );
+      }
+    } catch (error) {
+      console.log('Error al verificar límite mensual', error);
+    }
+  };
 
   const handleSave = async () => {
     const parsedAmount = Number(amount.replace(',', '.'));
@@ -170,14 +198,14 @@ export default function ExpenseFormScreen({ route, navigation }: any) {
           longitude,
           ...(uploadedReceipt
             ? {
-              receiptUrl: uploadedReceipt.receiptUrl,
-              receiptName: uploadedReceipt.receiptName,
-              receiptType: uploadedReceipt.receiptType,
-              receiptPath: uploadedReceipt.receiptPath,
-              imageUrl: uploadedReceipt.receiptType.startsWith('image/')
-                ? uploadedReceipt.receiptUrl
-                : null,
-            }
+                receiptUrl: uploadedReceipt.receiptUrl,
+                receiptName: uploadedReceipt.receiptName,
+                receiptType: uploadedReceipt.receiptType,
+                receiptPath: uploadedReceipt.receiptPath,
+                imageUrl: uploadedReceipt.receiptType.startsWith('image/')
+                  ? uploadedReceipt.receiptUrl
+                  : null,
+              }
             : {}),
         });
       } else {
@@ -198,6 +226,8 @@ export default function ExpenseFormScreen({ route, navigation }: any) {
           longitude,
         });
       }
+
+      await checkMonthlyLimitNotification();
 
       navigation.goBack();
     } catch (error) {
@@ -358,45 +388,45 @@ export default function ExpenseFormScreen({ route, navigation }: any) {
       </View>
 
       <Text style={{ fontWeight: 'bold', color: '#1F1F1F', marginTop: 8 }}>
-  Ubicación
-</Text>
+        Ubicación
+      </Text>
 
-<View
-  style={{
-    padding: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#E6E0EA',
-    backgroundColor: '#FFFFFF',
-    gap: 8,
-  }}
->
-  {latitude && longitude ? (
-    <Text style={{ color: '#1F1F1F' }}>
-      Lat: {latitude.toFixed(6)} · Lng: {longitude.toFixed(6)}
-    </Text>
-  ) : (
-    <Text style={{ color: '#666666' }}>
-      Todavía no guardaste ubicación para este gasto.
-    </Text>
-  )}
+      <View
+        style={{
+          padding: 12,
+          borderRadius: 10,
+          borderWidth: 1,
+          borderColor: '#E6E0EA',
+          backgroundColor: '#FFFFFF',
+          gap: 8,
+        }}
+      >
+        {latitude && longitude ? (
+          <Text style={{ color: '#1F1F1F' }}>
+            Lat: {latitude.toFixed(6)} · Lng: {longitude.toFixed(6)}
+          </Text>
+        ) : (
+          <Text style={{ color: '#666666' }}>
+            Todavía no guardaste ubicación para este gasto.
+          </Text>
+        )}
 
-  <TouchableOpacity
-    onPress={handleUseCurrentLocation}
-    disabled={loading || gettingLocation}
-    style={{
-      borderWidth: 1,
-      borderColor: '#0B6B2B',
-      padding: 12,
-      borderRadius: 10,
-      alignItems: 'center',
-    }}
-  >
-    <Text style={{ color: '#0B6B2B', fontWeight: 'bold' }}>
-      {gettingLocation ? 'Obteniendo ubicación...' : 'Usar ubicación actual'}
-    </Text>
-  </TouchableOpacity>
-</View>
+        <TouchableOpacity
+          onPress={handleUseCurrentLocation}
+          disabled={loading || gettingLocation}
+          style={{
+            borderWidth: 1,
+            borderColor: '#0B6B2B',
+            padding: 12,
+            borderRadius: 10,
+            alignItems: 'center',
+          }}
+        >
+          <Text style={{ color: '#0B6B2B', fontWeight: 'bold' }}>
+            {gettingLocation ? 'Obteniendo ubicación...' : 'Usar ubicación actual'}
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       <TouchableOpacity
         onPress={handleSave}

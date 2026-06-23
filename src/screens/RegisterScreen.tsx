@@ -1,5 +1,11 @@
 import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ActivityIndicator,
+} from 'react-native';
 
 import { register } from '../services/authService';
 import { authStyles } from '../styles/authStyles';
@@ -7,14 +13,34 @@ import { authStyles } from '../styles/authStyles';
 export default function RegisterScreen({ navigation }: any) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const handleRegister = async () => {
+    if (loading) return;
+
+    if (email.trim().length === 0 || password.trim().length === 0) {
+      setErrorMessage('Completá el correo y la contraseña');
+      return;
+    }
+
+    if (password.length < 6) {
+      setErrorMessage('La contraseña debe tener al menos 6 caracteres');
+      return;
+    }
+
     try {
-      await register(email, password);
+      setLoading(true);
+      setErrorMessage('');
+
+      await register(email.trim(), password);
+
       navigation.replace('Home');
     } catch (error) {
       console.log(error);
-      alert('Error al registrarse');
+      setErrorMessage('No se pudo crear la cuenta. Verificá el correo o intentá con otro.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -27,26 +53,87 @@ export default function RegisterScreen({ navigation }: any) {
         <TextInput
           placeholder="Correo electrónico"
           value={email}
-          onChangeText={setEmail}
+          onChangeText={(value) => {
+            setEmail(value);
+            setErrorMessage('');
+          }}
           autoCapitalize="none"
           keyboardType="email-address"
-          style={authStyles.input}
+          editable={!loading}
+          style={[
+            authStyles.input,
+            loading && { opacity: 0.6 },
+          ]}
         />
 
         <TextInput
           placeholder="Contraseña"
           value={password}
-          onChangeText={setPassword}
+          onChangeText={(value) => {
+            setPassword(value);
+            setErrorMessage('');
+          }}
           secureTextEntry
-          style={authStyles.input}
+          editable={!loading}
+          style={[
+            authStyles.input,
+            loading && { opacity: 0.6 },
+          ]}
         />
 
-        <TouchableOpacity style={authStyles.button} onPress={handleRegister}>
-          <Text style={authStyles.buttonText}>Registrarse</Text>
+        {errorMessage.length > 0 && (
+          <Text
+            style={{
+              color: '#B00020',
+              fontWeight: 'bold',
+              marginBottom: 10,
+              textAlign: 'center',
+            }}
+          >
+            {errorMessage}
+          </Text>
+        )}
+
+        <TouchableOpacity
+          style={[
+            authStyles.button,
+            loading && { opacity: 0.7 },
+          ]}
+          onPress={handleRegister}
+          disabled={loading}
+        >
+          {loading ? (
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+              }}
+            >
+              <ActivityIndicator size="small" color="#FFFFFF" />
+
+              <Text style={authStyles.buttonText}>
+                Creando cuenta...
+              </Text>
+            </View>
+          ) : (
+            <Text style={authStyles.buttonText}>Registrarse</Text>
+          )}
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={authStyles.link}>Ya tengo cuenta</Text>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          disabled={loading}
+        >
+          <Text
+            style={[
+              authStyles.link,
+              loading && { opacity: 0.5 },
+            ]}
+          >
+            Ya tengo cuenta
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
