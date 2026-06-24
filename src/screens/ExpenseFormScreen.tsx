@@ -167,13 +167,21 @@ export default function ExpenseFormScreen({ route, navigation }: any) {
       if (currentMonthlyTotal > settings.monthlyLimit) {
         await showLimitExceededNotification(
           currentMonthlyTotal,
-          settings.monthlyLimit
+          settings.monthlyLimit,
+          {
+            channelName: t('notifications.channelName'),
+            channelDescription: t('notifications.channelDescription'),
+            title: t('notifications.limitExceededTitle'),
+            body: t('notifications.limitExceededBody'),
+            currentTotalLabel: t('notifications.currentTotal'),
+            configuredLimitLabel: t('notifications.configuredLimit'),
+          }
         );
       }
     } catch (error) {
       console.log('Error al verificar límite mensual', error);
     }
-  };
+};
 
   const handleSave = async () => {
     const parsedAmount = Number(amount.replace(',', '.'));

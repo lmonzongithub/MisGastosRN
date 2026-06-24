@@ -237,6 +237,16 @@ const translations = {
       deleteError: 'No se pudo eliminar el gasto',
       openReceiptError: 'No se pudo abrir el comprobante',
     },
+
+    notifications: {
+      channelName: 'Alertas de gastos',
+      channelDescription:
+        'Notificaciones cuando se supera el límite mensual de gastos',
+      limitExceededTitle: 'Límite mensual superado',
+      limitExceededBody: 'Superaste tu límite mensual de gastos.',
+      currentTotal: 'Total actual',
+      configuredLimit: 'Límite configurado',
+    },
   },
 
   en: {
@@ -457,6 +467,16 @@ const translations = {
       deleteError: 'Could not delete the expense',
       openReceiptError: 'Could not open the receipt',
     },
+
+    notifications: {
+      channelName: 'Expense alerts',
+      channelDescription:
+        'Notifications when the monthly expense limit is exceeded',
+      limitExceededTitle: 'Monthly limit exceeded',
+      limitExceededBody: 'You exceeded your monthly expense limit.',
+      currentTotal: 'Current total',
+      configuredLimit: 'Configured limit',
+    },
   },
 
   pt: {
@@ -676,6 +696,16 @@ const translations = {
       loadError: 'Não foi possível carregar o gasto',
       deleteError: 'Não foi possível excluir o gasto',
       openReceiptError: 'Não foi possível abrir o comprovante',
+    },
+
+    notifications: {
+      channelName: 'Alertas de gastos',
+      channelDescription:
+        'Notificações quando o limite mensal de gastos é ultrapassado',
+      limitExceededTitle: 'Limite mensal ultrapassado',
+      limitExceededBody: 'Você ultrapassou seu limite mensal de gastos.',
+      currentTotal: 'Total atual',
+      configuredLimit: 'Limite configurado',
     },
   },
 };
