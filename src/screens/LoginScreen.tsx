@@ -9,8 +9,11 @@ import {
 
 import { login } from '../services/authService';
 import { authStyles } from '../styles/authStyles';
+import { useLanguage } from '../i18n/LanguageContext';
 
 export default function LoginScreen({ navigation }: any) {
+  const { t } = useLanguage();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -20,7 +23,7 @@ export default function LoginScreen({ navigation }: any) {
     if (loading) return;
 
     if (email.trim().length === 0 || password.trim().length === 0) {
-      setErrorMessage('Completá el correo y la contraseña');
+      setErrorMessage(t('auth.completeFields'));
       return;
     }
 
@@ -33,7 +36,7 @@ export default function LoginScreen({ navigation }: any) {
       navigation.replace('Home');
     } catch (error) {
       console.log(error);
-      setErrorMessage('Usuario o contraseña inválidos');
+      setErrorMessage(t('auth.invalidCredentials'));
     } finally {
       setLoading(false);
     }
@@ -41,12 +44,17 @@ export default function LoginScreen({ navigation }: any) {
 
   return (
     <View style={authStyles.container}>
-      <Text style={authStyles.title}>MisGastos</Text>
-      <Text style={authStyles.subtitle}>Iniciar sesión</Text>
+      <Text style={authStyles.title}>
+        {t('auth.appName')}
+      </Text>
+
+      <Text style={authStyles.subtitle}>
+        {t('auth.loginTitle')}
+      </Text>
 
       <View style={authStyles.card}>
         <TextInput
-          placeholder="Correo electrónico"
+          placeholder={t('auth.emailPlaceholder')}
           value={email}
           onChangeText={(value) => {
             setEmail(value);
@@ -62,7 +70,7 @@ export default function LoginScreen({ navigation }: any) {
         />
 
         <TextInput
-          placeholder="Contraseña"
+          placeholder={t('auth.passwordPlaceholder')}
           value={password}
           onChangeText={(value) => {
             setPassword(value);
@@ -109,11 +117,13 @@ export default function LoginScreen({ navigation }: any) {
               <ActivityIndicator size="small" color="#FFFFFF" />
 
               <Text style={authStyles.buttonText}>
-                Ingresando...
+                {t('auth.loggingIn')}
               </Text>
             </View>
           ) : (
-            <Text style={authStyles.buttonText}>Ingresar</Text>
+            <Text style={authStyles.buttonText}>
+              {t('auth.loginButton')}
+            </Text>
           )}
         </TouchableOpacity>
 
@@ -127,7 +137,7 @@ export default function LoginScreen({ navigation }: any) {
               loading && { opacity: 0.5 },
             ]}
           >
-            ¿No tenés cuenta? Registrate
+            {t('auth.goToRegister')}
           </Text>
         </TouchableOpacity>
       </View>

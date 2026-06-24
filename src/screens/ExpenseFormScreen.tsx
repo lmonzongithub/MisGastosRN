@@ -22,12 +22,14 @@ import { showLimitExceededNotification } from '../services/notificationService';
 import {
   EXPENSE_CATEGORIES,
   ExpenseCategoryCode,
-  getCategoryLabel,
   normalizeCategory,
 } from '../utils/categories';
 import { uploadReceipt, ReceiptFile } from '../services/receiptService';
+import { useLanguage } from '../i18n/LanguageContext';
 
 export default function ExpenseFormScreen({ route, navigation }: any) {
+  const { t } = useLanguage();
+
   const expenseId = route.params?.expenseId;
   const isEditing = !!expenseId;
 
@@ -54,7 +56,7 @@ export default function ExpenseFormScreen({ route, navigation }: any) {
       const expense = await getExpenseById(expenseId);
 
       if (!expense) {
-        Alert.alert('Error', 'No se encontró el gasto');
+        Alert.alert(t('common.error'), t('expenseForm.expenseNotFound'));
         navigation.goBack();
         return;
       }
@@ -70,7 +72,7 @@ export default function ExpenseFormScreen({ route, navigation }: any) {
       setLongitude(expense.longitude ?? null);
     } catch (error) {
       console.log(error);
-      Alert.alert('Error', 'No se pudo cargar el gasto');
+      Alert.alert(t('common.error'), t('expenseForm.loadError'));
     } finally {
       setLoadingExpense(false);
     }
@@ -97,7 +99,10 @@ export default function ExpenseFormScreen({ route, navigation }: any) {
       const mimeType = asset.mimeType ?? 'application/octet-stream';
 
       if (!mimeType.startsWith('image/') && mimeType !== 'application/pdf') {
-        Alert.alert('Archivo no permitido', 'Seleccioná una imagen o un PDF');
+        Alert.alert(
+          t('expenseForm.invalidReceiptTitle'),
+          t('expenseForm.invalidReceiptMessage')
+        );
         return;
       }
 
@@ -108,7 +113,7 @@ export default function ExpenseFormScreen({ route, navigation }: any) {
       });
     } catch (error) {
       console.log(error);
-      Alert.alert('Error', 'No se pudo seleccionar el comprobante');
+      Alert.alert(t('common.error'), t('expenseForm.pickReceiptError'));
     }
   };
 
@@ -120,8 +125,8 @@ export default function ExpenseFormScreen({ route, navigation }: any) {
 
       if (status !== 'granted') {
         Alert.alert(
-          'Permiso denegado',
-          'Necesitamos permiso de ubicación para guardar dónde se hizo el gasto.'
+          t('expenseForm.locationPermissionTitle'),
+          t('expenseForm.locationPermissionMessage')
         );
         return;
       }
@@ -133,10 +138,13 @@ export default function ExpenseFormScreen({ route, navigation }: any) {
       setLatitude(currentLocation.coords.latitude);
       setLongitude(currentLocation.coords.longitude);
 
-      Alert.alert('Ubicación guardada', 'Se guardó la ubicación actual.');
+      Alert.alert(
+        t('expenseForm.locationSavedTitle'),
+        t('expenseForm.locationSavedMessage')
+      );
     } catch (error) {
       console.log(error);
-      Alert.alert('Error', 'No se pudo obtener la ubicación actual');
+      Alert.alert(t('common.error'), t('expenseForm.locationError'));
     } finally {
       setGettingLocation(false);
     }
@@ -171,12 +179,12 @@ export default function ExpenseFormScreen({ route, navigation }: any) {
     const parsedAmount = Number(amount.replace(',', '.'));
 
     if (description.trim().length === 0) {
-      Alert.alert('Error', 'Completá la descripción');
+      Alert.alert(t('common.error'), t('expenseForm.missingDescription'));
       return;
     }
 
     if (Number.isNaN(parsedAmount) || parsedAmount <= 0) {
-      Alert.alert('Error', 'Ingresá un monto válido');
+      Alert.alert(t('common.error'), t('expenseForm.invalidAmount'));
       return;
     }
 
@@ -233,10 +241,10 @@ export default function ExpenseFormScreen({ route, navigation }: any) {
     } catch (error) {
       console.log(error);
       Alert.alert(
-        'Error',
+        t('common.error'),
         isEditing
-          ? 'No se pudo actualizar el gasto'
-          : 'No se pudo guardar el gasto'
+          ? t('expenseForm.updateError')
+          : t('expenseForm.saveError')
       );
     } finally {
       setLoading(false);
@@ -246,7 +254,7 @@ export default function ExpenseFormScreen({ route, navigation }: any) {
   if (loadingExpense) {
     return (
       <View style={{ flex: 1, padding: 16, backgroundColor: '#FDF7FF' }}>
-        <Text>Cargando gasto...</Text>
+        <Text>{t('expenseForm.loadingExpense')}</Text>
       </View>
     );
   }
@@ -264,11 +272,11 @@ export default function ExpenseFormScreen({ route, navigation }: any) {
           marginBottom: 4,
         }}
       >
-        {isEditing ? 'Editar gasto' : 'Nuevo gasto'}
+        {isEditing ? t('expenseForm.editTitle') : t('expenseForm.newTitle')}
       </Text>
 
       <TextInput
-        placeholder="Descripción"
+        placeholder={t('expenseForm.descriptionPlaceholder')}
         value={description}
         onChangeText={setDescription}
         editable={!loading}
@@ -282,7 +290,7 @@ export default function ExpenseFormScreen({ route, navigation }: any) {
       />
 
       <TextInput
-        placeholder="Monto"
+        placeholder={t('expenseForm.amountPlaceholder')}
         value={amount}
         onChangeText={setAmount}
         keyboardType="numeric"
@@ -303,7 +311,7 @@ export default function ExpenseFormScreen({ route, navigation }: any) {
           marginTop: 8,
         }}
       >
-        Categoría
+        {t('expenseForm.category')}
       </Text>
 
       <View style={{ gap: 8 }}>
@@ -329,7 +337,7 @@ export default function ExpenseFormScreen({ route, navigation }: any) {
                   fontWeight: isSelected ? 'bold' : 'normal',
                 }}
               >
-                {getCategoryLabel(item)}
+                {t(`categories.${item}`)}
               </Text>
             </TouchableOpacity>
           );
@@ -337,7 +345,7 @@ export default function ExpenseFormScreen({ route, navigation }: any) {
       </View>
 
       <Text style={{ fontWeight: 'bold', color: '#1F1F1F', marginTop: 8 }}>
-        Comprobante
+        {t('expenseForm.receipt')}
       </Text>
 
       <View
@@ -353,18 +361,18 @@ export default function ExpenseFormScreen({ route, navigation }: any) {
         <Text>
           {receiptFile?.name ??
             currentReceiptName ??
-            'Todavía no adjuntaste comprobante'}
+            t('expenseForm.noReceipt')}
         </Text>
 
         {receiptFile && (
           <Text style={{ color: '#0B6B2B', fontSize: 12 }}>
-            Archivo seleccionado. Se subirá al guardar.
+            {t('expenseForm.selectedReceipt')}
           </Text>
         )}
 
         {currentReceiptUrl && !receiptFile && (
           <Text style={{ color: '#666666', fontSize: 12 }}>
-            Este gasto ya tiene un comprobante guardado.
+            {t('expenseForm.savedReceipt')}
           </Text>
         )}
 
@@ -381,14 +389,14 @@ export default function ExpenseFormScreen({ route, navigation }: any) {
         >
           <Text style={{ color: '#0B6B2B', fontWeight: 'bold' }}>
             {receiptFile || currentReceiptUrl
-              ? 'Cambiar comprobante'
-              : 'Adjuntar imagen o PDF'}
+              ? t('expenseForm.changeReceipt')
+              : t('expenseForm.attachReceipt')}
           </Text>
         </TouchableOpacity>
       </View>
 
       <Text style={{ fontWeight: 'bold', color: '#1F1F1F', marginTop: 8 }}>
-        Ubicación
+        {t('expenseForm.location')}
       </Text>
 
       <View
@@ -407,7 +415,7 @@ export default function ExpenseFormScreen({ route, navigation }: any) {
           </Text>
         ) : (
           <Text style={{ color: '#666666' }}>
-            Todavía no guardaste ubicación para este gasto.
+            {t('expenseForm.noLocation')}
           </Text>
         )}
 
@@ -423,7 +431,9 @@ export default function ExpenseFormScreen({ route, navigation }: any) {
           }}
         >
           <Text style={{ color: '#0B6B2B', fontWeight: 'bold' }}>
-            {gettingLocation ? 'Obteniendo ubicación...' : 'Usar ubicación actual'}
+            {gettingLocation
+              ? t('expenseForm.gettingLocation')
+              : t('expenseForm.useCurrentLocation')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -442,11 +452,11 @@ export default function ExpenseFormScreen({ route, navigation }: any) {
         <Text style={{ color: '#FFF', fontWeight: 'bold' }}>
           {loading
             ? isEditing
-              ? 'Actualizando...'
-              : 'Guardando...'
+              ? t('expenseForm.updating')
+              : t('expenseForm.saving')
             : isEditing
-              ? 'Actualizar gasto'
-              : 'Guardar gasto'}
+              ? t('expenseForm.updateExpense')
+              : t('expenseForm.saveExpense')}
         </Text>
       </TouchableOpacity>
 
@@ -459,7 +469,7 @@ export default function ExpenseFormScreen({ route, navigation }: any) {
         }}
       >
         <Text style={{ color: '#0B6B2B', fontWeight: 'bold' }}>
-          Cancelar
+          {t('expenseForm.cancel')}
         </Text>
       </TouchableOpacity>
     </ScrollView>

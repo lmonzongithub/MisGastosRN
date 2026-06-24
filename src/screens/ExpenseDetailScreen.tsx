@@ -15,11 +15,21 @@ import {
   getExpenseById,
   deleteExpense,
 } from '../services/expenseService';
-import { getCategoryLabel } from '../utils/categories';
+import { normalizeCategory } from '../utils/categories';
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal';
 import ExpenseMap from '../components/ExpenseMap';
+import { useLanguage } from '../i18n/LanguageContext';
+
+function getDateLocale(language: string) {
+  if (language === 'en') return 'en-US';
+  if (language === 'pt') return 'pt-BR';
+
+  return 'es-AR';
+}
 
 export default function ExpenseDetailScreen({ route, navigation }: any) {
+  const { t, language } = useLanguage();
+
   const { expenseId } = route.params;
 
   const [expense, setExpense] = useState<Expense | null>(null);
@@ -34,7 +44,7 @@ export default function ExpenseDetailScreen({ route, navigation }: any) {
       const data = await getExpenseById(expenseId);
 
       if (!data) {
-        Alert.alert('Error', 'No se encontró el gasto');
+        Alert.alert(t('common.error'), t('expenseDetail.notFound'));
         navigation.goBack();
         return;
       }
@@ -42,7 +52,7 @@ export default function ExpenseDetailScreen({ route, navigation }: any) {
       setExpense(data);
     } catch (error) {
       console.log(error);
-      Alert.alert('Error', 'No se pudo cargar el gasto');
+      Alert.alert(t('common.error'), t('expenseDetail.loadError'));
     } finally {
       setLoading(false);
     }
@@ -59,7 +69,7 @@ export default function ExpenseDetailScreen({ route, navigation }: any) {
   };
 
   const formatDate = (date: number) => {
-    return new Date(date).toLocaleDateString();
+    return new Date(date).toLocaleDateString(getDateLocale(language));
   };
 
   const openDeleteModal = () => {
@@ -84,7 +94,7 @@ export default function ExpenseDetailScreen({ route, navigation }: any) {
       navigation.goBack();
     } catch (error) {
       console.log(error);
-      Alert.alert('Error', 'No se pudo eliminar el gasto');
+      Alert.alert(t('common.error'), t('expenseDetail.deleteError'));
     } finally {
       setDeleting(false);
     }
@@ -103,34 +113,37 @@ export default function ExpenseDetailScreen({ route, navigation }: any) {
         }}
       >
         <ActivityIndicator size="large" />
-        <Text style={{ color: '#666666' }}>Cargando gasto...</Text>
+        <Text style={{ color: '#666666' }}>
+          {t('expenseDetail.loading')}
+        </Text>
       </View>
     );
   }
-  
+
   const receiptUrl = expense.receiptUrl ?? expense.imageUrl;
-const receiptName = expense.receiptName ?? 'Comprobante adjunto';
+  const receiptName =
+    expense.receiptName ?? t('expenseDetail.attachedReceipt');
 
-const isImageReceipt =
-  !!receiptUrl &&
-  (expense.receiptType?.startsWith('image/') || !!expense.imageUrl);
+  const isImageReceipt =
+    !!receiptUrl &&
+    (expense.receiptType?.startsWith('image/') || !!expense.imageUrl);
+
   const openReceipt = async () => {
-  const receiptUrl = expense?.receiptUrl ?? expense?.imageUrl;
+    const receiptUrl = expense?.receiptUrl ?? expense?.imageUrl;
 
-  if (!receiptUrl) return;
+    if (!receiptUrl) return;
 
-  try {
-    await Linking.openURL(receiptUrl);
-  } catch (error) {
-    console.log(error);
-    Alert.alert('Error', 'No se pudo abrir el comprobante');
-  }
-};
+    try {
+      await Linking.openURL(receiptUrl);
+    } catch (error) {
+      console.log(error);
+      Alert.alert(t('common.error'), t('expenseDetail.openReceiptError'));
+    }
+  };
 
-
-const hasLocation =
-  typeof expense.latitude === 'number' &&
-  typeof expense.longitude === 'number';
+  const hasLocation =
+    typeof expense.latitude === 'number' &&
+    typeof expense.longitude === 'number';
 
   return (
     <View style={{ flex: 1, padding: 16, backgroundColor: '#FDF7FF' }}>
@@ -142,7 +155,7 @@ const hasLocation =
           marginBottom: 16,
         }}
       >
-        Detalle del gasto
+        {t('expenseDetail.title')}
       </Text>
 
       <View
@@ -156,18 +169,23 @@ const hasLocation =
         }}
       >
         <Text style={{ fontSize: 16, fontWeight: 'bold' }}>
-          Categoría
+          {t('expenseDetail.category')}
         </Text>
-        <Text>{getCategoryLabel(expense.category)}</Text>
+
+        <Text>
+          {t(`categories.${normalizeCategory(expense.category)}`)}
+        </Text>
 
         <Text style={{ fontSize: 16, fontWeight: 'bold', marginTop: 8 }}>
-          Descripción
+          {t('expenseDetail.description')}
         </Text>
+
         <Text>{expense.description}</Text>
 
         <Text style={{ fontSize: 16, fontWeight: 'bold', marginTop: 8 }}>
-          Monto
+          {t('expenseDetail.amount')}
         </Text>
+
         <Text
           style={{
             fontSize: 20,
@@ -179,75 +197,77 @@ const hasLocation =
         </Text>
 
         <Text style={{ fontSize: 16, fontWeight: 'bold', marginTop: 8 }}>
-          Fecha
+          {t('expenseDetail.date')}
         </Text>
+
         <Text>{formatDate(expense.date)}</Text>
       </View>
-      
+
       <Text style={{ fontSize: 16, fontWeight: 'bold', marginTop: 8 }}>
-  Comprobante
-</Text>
-
-{receiptUrl ? (
-  <View style={{ gap: 10 }}>
-    <Text>{receiptName}</Text>
-
-    {isImageReceipt && (
-      <Image
-        source={{ uri: receiptUrl }}
-        style={{
-          width: '100%',
-          height: 180,
-          borderRadius: 10,
-          backgroundColor: '#F1EDF5',
-        }}
-        resizeMode="cover"
-      />
-    )}
-
-    <TouchableOpacity
-      onPress={openReceipt}
-      style={{
-        borderWidth: 1,
-        borderColor: '#0B6B2B',
-        padding: 12,
-        borderRadius: 10,
-        alignItems: 'center',
-      }}
-    >
-      <Text style={{ color: '#0B6B2B', fontWeight: 'bold' }}>
-        Abrir comprobante
+        {t('expenseDetail.receipt')}
       </Text>
-    </TouchableOpacity>
-  </View>
-) : (
-  <Text style={{ color: '#666666' }}>
-    Este gasto no tiene comprobante adjunto.
-  </Text>
-)}
 
-<Text style={{ fontSize: 16, fontWeight: 'bold', marginTop: 8 }}>
-  Ubicación
-</Text>
+      {receiptUrl ? (
+        <View style={{ gap: 10 }}>
+          <Text>{receiptName}</Text>
 
-{hasLocation ? (
-  <View style={{ gap: 10 }}>
-    <Text style={{ color: '#666666' }}>
-      Lat: {expense.latitude?.toFixed(6)} · Lng:{' '}
-      {expense.longitude?.toFixed(6)}
-    </Text>
+          {isImageReceipt && (
+            <Image
+              source={{ uri: receiptUrl }}
+              style={{
+                width: '100%',
+                height: 180,
+                borderRadius: 10,
+                backgroundColor: '#F1EDF5',
+              }}
+              resizeMode="cover"
+            />
+          )}
 
-    <ExpenseMap
-  latitude={expense.latitude!}
-  longitude={expense.longitude!}
-  title={expense.description}
-/>
-  </View>
-) : (
-  <Text style={{ color: '#666666' }}>
-    Este gasto no tiene ubicación guardada.
-  </Text>
-)}
+          <TouchableOpacity
+            onPress={openReceipt}
+            style={{
+              borderWidth: 1,
+              borderColor: '#0B6B2B',
+              padding: 12,
+              borderRadius: 10,
+              alignItems: 'center',
+            }}
+          >
+            <Text style={{ color: '#0B6B2B', fontWeight: 'bold' }}>
+              {t('expenseDetail.openReceipt')}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <Text style={{ color: '#666666' }}>
+          {t('expenseDetail.noReceipt')}
+        </Text>
+      )}
+
+      <Text style={{ fontSize: 16, fontWeight: 'bold', marginTop: 8 }}>
+        {t('expenseDetail.location')}
+      </Text>
+
+      {hasLocation ? (
+        <View style={{ gap: 10 }}>
+          <Text style={{ color: '#666666' }}>
+            Lat: {expense.latitude?.toFixed(6)} · Lng:{' '}
+            {expense.longitude?.toFixed(6)}
+          </Text>
+
+          <ExpenseMap
+            latitude={expense.latitude!}
+            longitude={expense.longitude!}
+            title={expense.description}
+          />
+        </View>
+      ) : (
+        <Text style={{ color: '#666666' }}>
+          {t('expenseDetail.noLocation')}
+        </Text>
+      )}
+
       <TouchableOpacity
         onPress={() =>
           navigation.navigate('ExpenseForm', {
@@ -264,7 +284,7 @@ const hasLocation =
         }}
       >
         <Text style={{ color: '#FFF', fontWeight: 'bold' }}>
-          Editar gasto
+          {t('expenseDetail.editExpense')}
         </Text>
       </TouchableOpacity>
 
@@ -280,7 +300,7 @@ const hasLocation =
         }}
       >
         <Text style={{ color: '#FFF', fontWeight: 'bold' }}>
-          Eliminar gasto
+          {t('expenseDetail.deleteExpense')}
         </Text>
       </TouchableOpacity>
 
@@ -294,15 +314,17 @@ const hasLocation =
         }}
       >
         <Text style={{ color: '#0B6B2B', fontWeight: 'bold' }}>
-          Volver
+          {t('expenseDetail.back')}
         </Text>
       </TouchableOpacity>
 
       <ConfirmDeleteModal
         visible={deleteModalVisible}
         loading={deleting}
-        title="Eliminar gasto"
-        message={`¿Seguro que querés eliminar este gasto? Esta acción no se puede deshacer.`}
+        title={t('expenseDetail.deleteTitle')}
+        message={t('expenseDetail.deleteMessage')}
+        cancelText={t('common.cancel')}
+        confirmText={t('common.delete')}
         onCancel={closeDeleteModal}
         onConfirm={confirmDelete}
       />

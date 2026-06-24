@@ -24,11 +24,11 @@ import {
 import {
   EXPENSE_CATEGORIES,
   ExpenseCategoryCode,
-  getCategoryLabel,
   normalizeCategory,
 } from '../utils/categories';
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal';
 import InfoModal from '../components/InfoModal';
+import { useLanguage } from '../i18n/LanguageContext';
 
 type FilterCategory = 'ALL' | ExpenseCategoryCode;
 
@@ -65,15 +65,16 @@ function getReportFileName(categoryLabel: string) {
   return `gastos-${normalizedCategory}-${today}`;
 }
 
-async function printReportHtml(html: string, fileName: string) {
+async function printReportHtml(
+  html: string,
+  fileName: string,
+  popupBlockedMessage: string
+) {
   if (Platform.OS === 'web') {
     const printWindow = window.open('', '_blank');
 
     if (!printWindow) {
-      Alert.alert(
-        'PDF',
-        'No se pudo abrir la ventana de impresión. Revisá si el navegador bloqueó ventanas emergentes.'
-      );
+      Alert.alert('PDF', popupBlockedMessage);
       return;
     }
 
@@ -96,6 +97,8 @@ async function printReportHtml(html: string, fileName: string) {
 }
 
 export default function ExpenseListScreen({ navigation }: any) {
+  const { t, language } = useLanguage();
+
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(false);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
@@ -107,11 +110,23 @@ export default function ExpenseListScreen({ navigation }: any) {
   const [settings, setSettings] = useState<UserSettings>({
     monthlyLimit: 0,
     notificationsEnabled: false,
+    language: 'es',
   });
 
   const [infoModalVisible, setInfoModalVisible] = useState(false);
   const [infoModalTitle, setInfoModalTitle] = useState('');
   const [infoModalMessage, setInfoModalMessage] = useState('');
+
+  const getTranslatedCategoryLabel = (category: string) => {
+    return t(`categories.${normalizeCategory(category)}`);
+  };
+
+  const getDateLocale = () => {
+    if (language === 'en') return 'en-US';
+    if (language === 'pt') return 'pt-BR';
+
+    return 'es-AR';
+  };
 
   const loadExpenses = async () => {
     try {
@@ -128,7 +143,7 @@ export default function ExpenseListScreen({ navigation }: any) {
       setSettings(userSettings);
     } catch (error) {
       console.log(error);
-      Alert.alert('Error', 'No se pudieron cargar los gastos');
+      Alert.alert(t('common.error'), t('expenseList.loadError'));
     } finally {
       setLoading(false);
     }
@@ -192,7 +207,7 @@ export default function ExpenseListScreen({ navigation }: any) {
       setExpenseToDelete(null);
     } catch (error) {
       console.log(error);
-      Alert.alert('Error', 'No se pudo eliminar el gasto');
+      Alert.alert(t('common.error'), t('expenseList.deleteError'));
     } finally {
       setDeleting(false);
     }
@@ -205,37 +220,39 @@ export default function ExpenseListScreen({ navigation }: any) {
   };
 
   const handleExportPdf = async () => {
-  try {
-    const categoryLabel =
-      selectedCategory === 'ALL'
-        ? 'Todas'
-        : getCategoryLabel(selectedCategory);
+    try {
+      const categoryLabel =
+        selectedCategory === 'ALL'
+          ? t('categories.ALL')
+          : t(`categories.${selectedCategory}`);
 
-    const fileName = getReportFileName(categoryLabel);
+      const fileName = getReportFileName(categoryLabel);
 
-    if (filteredExpenses.length === 0) {
-      showInfoModal(
-        'No hay gastos para exportar',
-        `No hay gastos cargados para ${
-          selectedCategory === 'ALL' ? 'la selección actual' : categoryLabel
-        }. Probá seleccionando otra categoría.`
-      );
+      if (filteredExpenses.length === 0) {
+        showInfoModal(
+          t('expenseList.noExpensesToExportTitle'),
+          `${t('expenseList.noExpensesFor')} ${
+            selectedCategory === 'ALL'
+              ? t('expenseList.currentSelection')
+              : categoryLabel
+          }. ${t('expenseList.tryAnotherCategory')}`
+        );
 
-      return;
-    }
+        return;
+      }
 
-    const expenseRows = filteredExpenses
-      .map(
-        (expense) => `
-          <tr>
-            <td>${new Date(expense.date).toLocaleDateString('es-AR')}</td>
-            <td>${escapeHtml(expense.description)}</td>
-            <td>${getCategoryLabel(expense.category)}</td>
-            <td class="right">${formatAmount(expense.amount)}</td>
-          </tr>
-        `
-      )
-      .join('');
+      const expenseRows = filteredExpenses
+        .map(
+          (expense) => `
+            <tr>
+              <td>${new Date(expense.date).toLocaleDateString(getDateLocale())}</td>
+              <td>${escapeHtml(expense.description)}</td>
+              <td>${escapeHtml(getTranslatedCategoryLabel(expense.category))}</td>
+              <td class="right">${formatAmount(expense.amount)}</td>
+            </tr>
+          `
+        )
+        .join('');
 
       const html = `
         <html>
@@ -316,22 +333,22 @@ export default function ExpenseListScreen({ navigation }: any) {
           </head>
 
           <body>
-            <h1>Mis Gastos - Reporte</h1>
+            <h1>${t('expenseList.reportTitle')}</h1>
 
             <div class="subtitle">
-              Categoría: ${categoryLabel}
+              ${t('expenseList.reportCategory')}: ${escapeHtml(categoryLabel)}
             </div>
 
             <div class="summary">
-              <div class="summary-title">Resumen del reporte</div>
+              <div class="summary-title">${t('expenseList.reportSummary')}</div>
 
               <div class="summary-row">
-                <span>Total de gastos</span>
+                <span>${t('expenseList.reportTotalExpenses')}</span>
                 <strong>${formatAmount(filteredTotal)}</strong>
               </div>
 
               <div class="summary-row">
-                <span>Cantidad de gastos</span>
+                <span>${t('expenseList.reportExpenseCount')}</span>
                 <strong>${filteredExpenses.length}</strong>
               </div>
             </div>
@@ -339,10 +356,10 @@ export default function ExpenseListScreen({ navigation }: any) {
             <table>
               <thead>
                 <tr>
-                  <th>Fecha</th>
-                  <th>Descripción</th>
-                  <th>Categoría</th>
-                  <th class="right">Monto</th>
+                  <th>${t('expenseList.pdfDate')}</th>
+                  <th>${t('expenseList.pdfDescription')}</th>
+                  <th>${t('expenseList.pdfCategory')}</th>
+                  <th class="right">${t('expenseList.pdfAmount')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -353,17 +370,21 @@ export default function ExpenseListScreen({ navigation }: any) {
         </html>
       `;
 
-      await printReportHtml(html, fileName);
+      await printReportHtml(
+        html,
+        fileName,
+        t('expenseList.popupBlocked')
+      );
     } catch (error) {
       console.log(error);
-      Alert.alert('Error', 'No se pudo exportar el PDF');
+      Alert.alert(t('common.error'), t('expenseList.exportError'));
     }
   };
 
   const expenseCountText =
     monthlyExpenseCount === 1
-      ? '1 gasto registrado'
-      : `${monthlyExpenseCount} gastos registrados`;
+      ? t('expenseList.oneExpenseRegistered')
+      : `${monthlyExpenseCount} ${t('expenseList.expensesRegistered')}`;
 
   const hasMonthlyLimit = settings.monthlyLimit > 0;
 
@@ -382,7 +403,7 @@ export default function ExpenseListScreen({ navigation }: any) {
           color: '#1F1F1F',
         }}
       >
-        Mis Gastos
+        {t('expenseList.title')}
       </Text>
 
       <View
@@ -396,7 +417,7 @@ export default function ExpenseListScreen({ navigation }: any) {
         }}
       >
         <Text style={{ color: '#666666', fontSize: 14, marginBottom: 4 }}>
-          Gastos del mes
+          {t('expenseList.monthlyExpenses')}
         </Text>
 
         <Text
@@ -421,13 +442,13 @@ export default function ExpenseListScreen({ navigation }: any) {
               fontWeight: monthlyLimitExceeded ? 'bold' : 'normal',
             }}
           >
-            Límite mensual: {formatAmount(settings.monthlyLimit)}
+            {t('expenseList.monthlyLimit')}: {formatAmount(settings.monthlyLimit)}
           </Text>
         )}
 
         {hasMonthlyLimit && !settings.notificationsEnabled && (
           <Text style={{ color: '#666666', marginTop: 8 }}>
-            Alertas por límite desactivadas
+            {t('expenseList.limitAlertsDisabled')}
           </Text>
         )}
 
@@ -441,11 +462,11 @@ export default function ExpenseListScreen({ navigation }: any) {
             }}
           >
             <Text style={{ color: '#B00020', fontWeight: 'bold' }}>
-              Superaste tu límite mensual
+              {t('expenseList.limitExceededTitle')}
             </Text>
 
             <Text style={{ color: '#B00020', marginTop: 4 }}>
-              Revisá tus gastos o ajustá el límite desde Configuración.
+              {t('expenseList.limitExceededMessage')}
             </Text>
           </View>
         )}
@@ -462,7 +483,7 @@ export default function ExpenseListScreen({ navigation }: any) {
         }}
       >
         <Text style={{ color: '#FFF', fontWeight: 'bold' }}>
-          Nuevo gasto
+          {t('expenseList.newExpense')}
         </Text>
       </TouchableOpacity>
 
@@ -480,7 +501,7 @@ export default function ExpenseListScreen({ navigation }: any) {
         }}
       >
         <Text style={{ color: '#0B6B2B', fontWeight: 'bold' }}>
-          Exportar PDF
+          {t('expenseList.exportPdf')}
         </Text>
       </TouchableOpacity>
 
@@ -492,7 +513,7 @@ export default function ExpenseListScreen({ navigation }: any) {
           marginBottom: 8,
         }}
       >
-        Filtrar por categoría
+        {t('expenseList.filterByCategory')}
       </Text>
 
       <View
@@ -524,7 +545,7 @@ export default function ExpenseListScreen({ navigation }: any) {
               fontWeight: 'bold',
             }}
           >
-            Todas
+            {t('categories.ALL')}
           </Text>
         </TouchableOpacity>
 
@@ -553,7 +574,7 @@ export default function ExpenseListScreen({ navigation }: any) {
                   fontWeight: 'bold',
                 }}
               >
-                {getCategoryLabel(category)}
+                {t(`categories.${category}`)}
               </Text>
             </TouchableOpacity>
           );
@@ -567,7 +588,7 @@ export default function ExpenseListScreen({ navigation }: any) {
             marginBottom: 12,
           }}
         >
-          Total filtrado: {formatAmount(filteredTotal)}
+          {t('expenseList.filteredTotal')}: {formatAmount(filteredTotal)}
         </Text>
       )}
 
@@ -581,7 +602,9 @@ export default function ExpenseListScreen({ navigation }: any) {
           }}
         >
           <ActivityIndicator size="large" />
-          <Text style={{ color: '#666666' }}>Cargando gastos...</Text>
+          <Text style={{ color: '#666666' }}>
+            {t('expenseList.loadingExpenses')}
+          </Text>
         </View>
       ) : (
         <FlatList
@@ -608,7 +631,7 @@ export default function ExpenseListScreen({ navigation }: any) {
                   marginBottom: 6,
                 }}
               >
-                No hay gastos para este filtro
+                {t('expenseList.emptyTitle')}
               </Text>
 
               <Text
@@ -617,7 +640,7 @@ export default function ExpenseListScreen({ navigation }: any) {
                   textAlign: 'center',
                 }}
               >
-                Probá con otra categoría o agregá un gasto nuevo.
+                {t('expenseList.emptyMessage')}
               </Text>
             </View>
           }
@@ -639,7 +662,7 @@ export default function ExpenseListScreen({ navigation }: any) {
                   color: '#1F1F1F',
                 }}
               >
-                {getCategoryLabel(item.category)}
+                {getTranslatedCategoryLabel(item.category)}
               </Text>
 
               <Text style={{ marginTop: 4, color: '#666666' }}>
@@ -673,7 +696,7 @@ export default function ExpenseListScreen({ navigation }: any) {
                 }}
               >
                 <Text style={{ color: '#FFF', fontWeight: 'bold' }}>
-                  Ver detalle
+                  {t('expenseList.viewDetail')}
                 </Text>
               </TouchableOpacity>
 
@@ -689,7 +712,7 @@ export default function ExpenseListScreen({ navigation }: any) {
                 }}
               >
                 <Text style={{ color: '#FFF', fontWeight: 'bold' }}>
-                  Eliminar
+                  {t('expenseList.delete')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -700,8 +723,10 @@ export default function ExpenseListScreen({ navigation }: any) {
       <ConfirmDeleteModal
         visible={deleteModalVisible}
         loading={deleting}
-        title="Eliminar gasto"
-        message="¿Seguro que querés eliminar este gasto? Esta acción no se puede deshacer."
+        title={t('expenseList.deleteTitle')}
+        message={t('expenseList.deleteMessage')}
+        cancelText={t('common.cancel')}
+        confirmText={t('common.delete')}
         onCancel={closeDeleteModal}
         onConfirm={confirmDelete}
       />

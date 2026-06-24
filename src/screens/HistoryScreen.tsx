@@ -16,10 +16,10 @@ import { getExpensesByUser } from '../services/expenseService';
 import {
   EXPENSE_CATEGORIES,
   ExpenseCategoryCode,
-  getCategoryLabel,
   normalizeCategory,
 } from '../utils/categories';
 import InfoModal from '../components/InfoModal';
+import { useLanguage } from '../i18n/LanguageContext';
 
 type FilterCategory = 'ALL' | ExpenseCategoryCode;
 
@@ -45,8 +45,15 @@ function isSameMonth(timestamp: number, selectedDate: Date) {
   );
 }
 
-function getMonthLabel(date: Date) {
-  return date.toLocaleDateString('es-AR', {
+function getDateLocale(language: string) {
+  if (language === 'en') return 'en-US';
+  if (language === 'pt') return 'pt-BR';
+
+  return 'es-AR';
+}
+
+function getMonthLabel(date: Date, language: string) {
+  return date.toLocaleDateString(getDateLocale(language), {
     month: 'long',
     year: 'numeric',
   });
@@ -68,23 +75,30 @@ function normalizeForFileName(value: string) {
     .replace(/\s+/g, '-');
 }
 
-function getPdfFileName(selectedMonth: Date, categoryLabel: string) {
+function getPdfFileName(
+  selectedMonth: Date,
+  categoryLabel: string,
+  language: string
+) {
   const today = formatDateForFileName(new Date());
-  const monthLabel = normalizeForFileName(getMonthLabel(selectedMonth));
+  const monthLabel = normalizeForFileName(
+    getMonthLabel(selectedMonth, language)
+  );
   const normalizedCategory = normalizeForFileName(categoryLabel);
 
   return `historial-${monthLabel}-${normalizedCategory}-${today}`;
 }
 
-async function printReportHtml(html: string, fileName: string) {
+async function printReportHtml(
+  html: string,
+  fileName: string,
+  popupBlockedMessage: string
+) {
   if (Platform.OS === 'web') {
     const printWindow = window.open('', '_blank');
 
     if (!printWindow) {
-      Alert.alert(
-        'PDF',
-        'No se pudo abrir la ventana de impresión. Revisá si el navegador bloqueó ventanas emergentes.'
-      );
+      Alert.alert('PDF', popupBlockedMessage);
       return;
     }
 
@@ -107,6 +121,8 @@ async function printReportHtml(html: string, fileName: string) {
 }
 
 export default function HistoryScreen() {
+  const { t, language } = useLanguage();
+
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(new Date());
@@ -125,7 +141,7 @@ export default function HistoryScreen() {
       setExpenses(data);
     } catch (error) {
       console.log(error);
-      Alert.alert('Error', 'No se pudo cargar el historial');
+      Alert.alert(t('common.error'), t('history.loadError'));
     } finally {
       setLoading(false);
     }
@@ -167,11 +183,11 @@ export default function HistoryScreen() {
 
       return {
         category,
-        label: getCategoryLabel(category),
+        label: t(`categories.${category}`),
         total,
       };
     }).filter((item) => item.total > 0);
-  }, [monthlyExpenses]);
+  }, [monthlyExpenses, t]);
 
   const goToPreviousMonth = () => {
     setSelectedMonth((current) => {
@@ -200,12 +216,17 @@ export default function HistoryScreen() {
       if (filteredExpenses.length === 0) {
         const categoryLabel =
           selectedCategory === 'ALL'
-            ? 'la selección actual'
-            : getCategoryLabel(selectedCategory);
+            ? t('history.currentSelection')
+            : t(`categories.${selectedCategory}`);
 
         showInfoModal(
-          'No hay gastos para exportar',
-          `No hay gastos cargados para ${categoryLabel} en ${getMonthLabel(selectedMonth)}. Probá seleccionando otra categoría o cambiando de mes.`
+          t('history.noExpensesToExportTitle'),
+          `${t('history.noExpensesFor')} ${categoryLabel} ${t(
+            'history.reportMonth'
+          ).toLowerCase()} ${getMonthLabel(
+            selectedMonth,
+            language
+          )}. ${t('history.noExpensesExportMessageEnd')}`
         );
 
         return;
@@ -213,10 +234,14 @@ export default function HistoryScreen() {
 
       const categoryLabel =
         selectedCategory === 'ALL'
-          ? 'Todas'
-          : getCategoryLabel(selectedCategory);
+          ? t('categories.ALL')
+          : t(`categories.${selectedCategory}`);
 
-      const fileName = getPdfFileName(selectedMonth, categoryLabel);
+      const fileName = getPdfFileName(
+        selectedMonth,
+        categoryLabel,
+        language
+      );
 
       const categoryRows = categorySummary
         .map(
@@ -233,9 +258,13 @@ export default function HistoryScreen() {
         .map(
           (expense) => `
             <tr>
-              <td>${new Date(expense.date).toLocaleDateString('es-AR')}</td>
+              <td>${new Date(expense.date).toLocaleDateString(
+                getDateLocale(language)
+              )}</td>
               <td>${escapeHtml(expense.description)}</td>
-              <td>${getCategoryLabel(expense.category)}</td>
+              <td>${escapeHtml(
+                t(`categories.${normalizeCategory(expense.category)}`)
+              )}</td>
               <td class="right">${formatMoney(expense.amount)}</td>
             </tr>
           `
@@ -334,18 +363,21 @@ export default function HistoryScreen() {
           </head>
 
           <body>
-            <h1>Historial de gastos</h1>
+            <h1>${t('history.reportTitle')}</h1>
 
             <div class="subtitle">
-              Mes: ${getMonthLabel(selectedMonth)}<br />
-              Categoría: ${categoryLabel}
+              ${t('history.reportMonth')}: ${getMonthLabel(
+                selectedMonth,
+                language
+              )}<br />
+              ${t('history.reportCategory')}: ${escapeHtml(categoryLabel)}
             </div>
 
             <div class="summary">
-              <div class="summary-title">Resumen del reporte</div>
+              <div class="summary-title">${t('history.reportSummary')}</div>
 
               <div class="summary-row">
-                <span>Total del mes</span>
+                <span>${t('history.reportMonthlyTotal')}</span>
                 <strong>${formatMoney(monthlyTotal)}</strong>
               </div>
 
@@ -353,7 +385,7 @@ export default function HistoryScreen() {
                 selectedCategory !== 'ALL'
                   ? `
                     <div class="summary-row">
-                      <span>Total filtrado</span>
+                      <span>${t('history.reportFilteredTotal')}</span>
                       <strong>${formatMoney(filteredTotal)}</strong>
                     </div>
                   `
@@ -361,22 +393,22 @@ export default function HistoryScreen() {
               }
 
               <div class="summary-row">
-                <span>Cantidad de gastos exportados</span>
+                <span>${t('history.reportExportedCount')}</span>
                 <strong>${filteredExpenses.length}</strong>
               </div>
             </div>
 
-            <h2>Resumen por categoría</h2>
+            <h2>${t('history.reportCategorySummary')}</h2>
 
             ${
               categorySummary.length === 0
-                ? `<p class="empty">No hay gastos para resumir.</p>`
+                ? `<p class="empty">${t('history.reportNoSummary')}</p>`
                 : `
                   <table>
                     <thead>
                       <tr>
-                        <th>Categoría</th>
-                        <th class="right">Total</th>
+                        <th>${t('history.pdfCategory')}</th>
+                        <th class="right">${t('history.pdfTotal')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -386,15 +418,15 @@ export default function HistoryScreen() {
                 `
             }
 
-            <h2>Detalle de gastos</h2>
+            <h2>${t('history.reportExpenseDetail')}</h2>
 
             <table>
               <thead>
                 <tr>
-                  <th>Fecha</th>
-                  <th>Descripción</th>
-                  <th>Categoría</th>
-                  <th class="right">Monto</th>
+                  <th>${t('history.pdfDate')}</th>
+                  <th>${t('history.pdfDescription')}</th>
+                  <th>${t('history.pdfCategory')}</th>
+                  <th class="right">${t('history.pdfAmount')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -405,12 +437,21 @@ export default function HistoryScreen() {
         </html>
       `;
 
-      await printReportHtml(html, fileName);
+      await printReportHtml(
+        html,
+        fileName,
+        t('history.popupBlocked')
+      );
     } catch (error) {
       console.log(error);
-      Alert.alert('Error', 'No se pudo exportar el PDF');
+      Alert.alert(t('common.error'), t('history.exportError'));
     }
   };
+
+  const monthExpenseCountText =
+    monthlyExpenses.length === 1
+      ? t('history.oneExpenseRegistered')
+      : `${monthlyExpenses.length} ${t('history.expensesRegistered')}`;
 
   return (
     <ScrollView
@@ -418,7 +459,7 @@ export default function HistoryScreen() {
       contentContainerStyle={{ padding: 16, gap: 14 }}
     >
       <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#1F1F1F' }}>
-        Historial
+        {t('history.title')}
       </Text>
 
       <View
@@ -432,7 +473,7 @@ export default function HistoryScreen() {
         }}
       >
         <Text style={{ fontWeight: 'bold', color: '#1F1F1F' }}>
-          Mes seleccionado
+          {t('history.selectedMonth')}
         </Text>
 
         <View
@@ -444,17 +485,17 @@ export default function HistoryScreen() {
         >
           <TouchableOpacity onPress={goToPreviousMonth}>
             <Text style={{ color: '#0B6B2B', fontWeight: 'bold' }}>
-              ← Anterior
+              {t('history.previous')}
             </Text>
           </TouchableOpacity>
 
           <Text style={{ fontWeight: 'bold', textTransform: 'capitalize' }}>
-            {getMonthLabel(selectedMonth)}
+            {getMonthLabel(selectedMonth, language)}
           </Text>
 
           <TouchableOpacity onPress={goToNextMonth}>
             <Text style={{ color: '#0B6B2B', fontWeight: 'bold' }}>
-              Siguiente →
+              {t('history.next')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -469,7 +510,7 @@ export default function HistoryScreen() {
         }}
       >
         <Text style={{ color: '#FFFFFF', fontSize: 16 }}>
-          Gastos del mes
+          {t('history.monthlyExpenses')}
         </Text>
 
         <Text style={{ color: '#FFFFFF', fontSize: 26, fontWeight: 'bold' }}>
@@ -477,12 +518,12 @@ export default function HistoryScreen() {
         </Text>
 
         <Text style={{ color: '#E7F3EA' }}>
-          {monthlyExpenses.length} gastos registrados
+          {monthExpenseCountText}
         </Text>
 
         {selectedCategory !== 'ALL' && (
           <Text style={{ color: '#E7F3EA' }}>
-            Filtrado: {formatMoney(filteredTotal)}
+            {t('history.filtered')}: {formatMoney(filteredTotal)}
           </Text>
         )}
       </View>
@@ -500,12 +541,12 @@ export default function HistoryScreen() {
         }}
       >
         <Text style={{ color: '#0B6B2B', fontWeight: 'bold' }}>
-          Exportar PDF
+          {t('history.exportPdf')}
         </Text>
       </TouchableOpacity>
 
       <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#1F1F1F' }}>
-        Filtrar por categoría
+        {t('history.filterByCategory')}
       </Text>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -528,7 +569,7 @@ export default function HistoryScreen() {
                 fontWeight: 'bold',
               }}
             >
-              Todas
+              {t('categories.ALL')}
             </Text>
           </TouchableOpacity>
 
@@ -554,7 +595,7 @@ export default function HistoryScreen() {
                     fontWeight: 'bold',
                   }}
                 >
-                  {getCategoryLabel(category)}
+                  {t(`categories.${category}`)}
                 </Text>
               </TouchableOpacity>
             );
@@ -563,7 +604,7 @@ export default function HistoryScreen() {
       </ScrollView>
 
       <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#1F1F1F' }}>
-        Resumen por categoría
+        {t('history.categorySummary')}
       </Text>
 
       <View
@@ -578,7 +619,7 @@ export default function HistoryScreen() {
       >
         {categorySummary.length === 0 ? (
           <Text style={{ color: '#666666' }}>
-            No hay gastos para resumir en este mes.
+            {t('history.noSummaryExpenses')}
           </Text>
         ) : (
           categorySummary.map((item) => (
@@ -590,6 +631,7 @@ export default function HistoryScreen() {
               }}
             >
               <Text>{item.label}</Text>
+
               <Text style={{ fontWeight: 'bold' }}>
                 {formatMoney(item.total)}
               </Text>
@@ -599,10 +641,10 @@ export default function HistoryScreen() {
       </View>
 
       <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#1F1F1F' }}>
-        Gastos
+        {t('history.expenses')}
       </Text>
 
-            {loading ? (
+      {loading ? (
         <ActivityIndicator size="large" color="#0B6B2B" />
       ) : filteredExpenses.length === 0 ? (
         <View
@@ -615,7 +657,7 @@ export default function HistoryScreen() {
           }}
         >
           <Text style={{ color: '#666666', textAlign: 'center' }}>
-            No hay gastos para este filtro.
+            {t('history.noExpensesForFilter')}
           </Text>
         </View>
       ) : (
@@ -636,8 +678,8 @@ export default function HistoryScreen() {
             </Text>
 
             <Text style={{ color: '#666666' }}>
-              {getCategoryLabel(expense.category)} ·{' '}
-              {new Date(expense.date).toLocaleDateString('es-AR')}
+              {t(`categories.${normalizeCategory(expense.category)}`)} ·{' '}
+              {new Date(expense.date).toLocaleDateString(getDateLocale(language))}
             </Text>
 
             <Text style={{ color: '#0B6B2B', fontWeight: 'bold' }}>

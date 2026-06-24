@@ -17,14 +17,22 @@ import {
   getUserSettings,
   saveUserSettings,
 } from '../services/settingsService';
+import {
+  LANGUAGE_OPTIONS,
+  Language,
+} from '../i18n/translations';
+import { useLanguage } from '../i18n/LanguageContext';
 
 export default function SettingsScreen({ navigation }: any) {
+  const { t, language, setLanguage } = useLanguage();
+
   const [monthlyLimit, setMonthlyLimit] = useState('');
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [selectedLanguage, setSelectedLanguage] = useState<Language>(language);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const userEmail = auth.currentUser?.email ?? 'Usuario sin email';
+  const userEmail = auth.currentUser?.email ?? t('settings.noEmail');
 
   const loadSettings = async () => {
     try {
@@ -39,9 +47,11 @@ export default function SettingsScreen({ navigation }: any) {
       );
 
       setNotificationsEnabled(settings.notificationsEnabled);
+      setSelectedLanguage(settings.language);
+      setLanguage(settings.language);
     } catch (error) {
       console.log(error);
-      Alert.alert('Error', 'No se pudo cargar la configuración');
+      Alert.alert(t('common.error'), t('settings.loadError'));
     } finally {
       setLoading(false);
     }
@@ -60,7 +70,7 @@ export default function SettingsScreen({ navigation }: any) {
       monthlyLimit.trim().length > 0 &&
       (Number.isNaN(parsedLimit) || parsedLimit < 0)
     ) {
-      Alert.alert('Error', 'Ingresá un límite mensual válido');
+      Alert.alert(t('common.error'), t('settings.invalidLimit'));
       return;
     }
 
@@ -70,12 +80,15 @@ export default function SettingsScreen({ navigation }: any) {
       await saveUserSettings({
         monthlyLimit: monthlyLimit.trim().length === 0 ? 0 : parsedLimit,
         notificationsEnabled,
+        language: selectedLanguage,
       });
 
-      Alert.alert('Configuración', 'Configuración guardada correctamente');
+      setLanguage(selectedLanguage);
+
+      Alert.alert(t('settings.saveTitle'), t('settings.saveSuccess'));
     } catch (error) {
       console.log(error);
-      Alert.alert('Error', 'No se pudo guardar la configuración');
+      Alert.alert(t('common.error'), t('settings.saveError'));
     } finally {
       setSaving(false);
     }
@@ -91,7 +104,7 @@ export default function SettingsScreen({ navigation }: any) {
       });
     } catch (error) {
       console.log(error);
-      Alert.alert('Error', 'No se pudo cerrar sesión');
+      Alert.alert(t('common.error'), t('settings.logoutError'));
     }
   };
 
@@ -107,8 +120,9 @@ export default function SettingsScreen({ navigation }: any) {
         }}
       >
         <ActivityIndicator size="large" />
+
         <Text style={{ color: '#666666' }}>
-          Cargando configuración...
+          {t('settings.loading')}
         </Text>
       </View>
     );
@@ -126,7 +140,7 @@ export default function SettingsScreen({ navigation }: any) {
           color: '#1F1F1F',
         }}
       >
-        Configuración
+        {t('settings.title')}
       </Text>
 
       <View
@@ -140,7 +154,7 @@ export default function SettingsScreen({ navigation }: any) {
         }}
       >
         <Text style={{ fontWeight: 'bold', color: '#1F1F1F' }}>
-          Usuario
+          {t('settings.user')}
         </Text>
 
         <Text style={{ color: '#666666' }}>
@@ -159,11 +173,11 @@ export default function SettingsScreen({ navigation }: any) {
         }}
       >
         <Text style={{ fontWeight: 'bold', color: '#1F1F1F' }}>
-          Límite mensual
+          {t('settings.monthlyLimit')}
         </Text>
 
         <TextInput
-          placeholder="Ej: 100000"
+          placeholder={t('settings.monthlyLimitPlaceholder')}
           value={monthlyLimit}
           onChangeText={setMonthlyLimit}
           keyboardType="numeric"
@@ -187,11 +201,11 @@ export default function SettingsScreen({ navigation }: any) {
         >
           <View style={{ flex: 1, paddingRight: 12 }}>
             <Text style={{ fontWeight: 'bold', color: '#1F1F1F' }}>
-              Alertas por límite
+              {t('settings.limitAlerts')}
             </Text>
 
             <Text style={{ color: '#666666', marginTop: 2 }}>
-              Avisar cuando los gastos del mes superen el límite.
+              {t('settings.limitAlertsDescription')}
             </Text>
           </View>
 
@@ -201,6 +215,49 @@ export default function SettingsScreen({ navigation }: any) {
             disabled={saving}
           />
         </View>
+      </View>
+
+      <View
+        style={{
+          padding: 16,
+          borderRadius: 14,
+          backgroundColor: '#FFFFFF',
+          borderWidth: 1,
+          borderColor: '#E6E0EA',
+          gap: 12,
+        }}
+      >
+        <Text style={{ fontWeight: 'bold', color: '#1F1F1F' }}>
+          {t('settings.language')}
+        </Text>
+
+        {LANGUAGE_OPTIONS.map((item) => {
+          const isSelected = selectedLanguage === item.code;
+
+          return (
+            <TouchableOpacity
+              key={item.code}
+              onPress={() => setSelectedLanguage(item.code)}
+              disabled={saving}
+              style={{
+                padding: 12,
+                borderRadius: 10,
+                borderWidth: 1,
+                borderColor: isSelected ? '#0B6B2B' : '#E6E0EA',
+                backgroundColor: isSelected ? '#E7F3EA' : '#FFFFFF',
+              }}
+            >
+              <Text
+                style={{
+                  color: isSelected ? '#0B6B2B' : '#1F1F1F',
+                  fontWeight: isSelected ? 'bold' : 'normal',
+                }}
+              >
+                {item.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       <TouchableOpacity
@@ -214,7 +271,7 @@ export default function SettingsScreen({ navigation }: any) {
         }}
       >
         <Text style={{ color: '#FFFFFF', fontWeight: 'bold' }}>
-          {saving ? 'Guardando...' : 'Guardar configuración'}
+          {saving ? t('settings.saving') : t('settings.saveButton')}
         </Text>
       </TouchableOpacity>
 
@@ -230,7 +287,7 @@ export default function SettingsScreen({ navigation }: any) {
         }}
       >
         <Text style={{ color: '#FFFFFF', fontWeight: 'bold' }}>
-          Cerrar sesión
+          {t('settings.logout')}
         </Text>
       </TouchableOpacity>
     </ScrollView>

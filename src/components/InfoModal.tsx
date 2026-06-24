@@ -17,7 +17,7 @@ export default function InfoModal({
   visible,
   title,
   message,
-  buttonText = 'Entendido',
+  buttonText = 'OK',
   onClose,
 }: InfoModalProps) {
   return (

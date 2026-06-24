@@ -11,6 +11,8 @@ type ConfirmDeleteModalProps = {
   title?: string;
   message?: string;
   loading?: boolean;
+  cancelText?: string;
+  confirmText?: string;
   onCancel: () => void;
   onConfirm: () => void;
 };
@@ -20,6 +22,8 @@ export default function ConfirmDeleteModal({
   title = 'Eliminar gasto',
   message = '¿Seguro que querés eliminar este gasto? Esta acción no se puede deshacer.',
   loading = false,
+  cancelText = 'Cancelar',
+  confirmText = 'Eliminar',
   onCancel,
   onConfirm,
 }: ConfirmDeleteModalProps) {
@@ -79,7 +83,7 @@ export default function ConfirmDeleteModal({
               }}
             >
               <ActivityIndicator size="small" />
-              <Text style={{ color: '#555555' }}>Eliminando...</Text>
+              <Text style={{ color: '#555555' }}>...</Text>
             </View>
           ) : (
             <View
@@ -103,7 +107,7 @@ export default function ConfirmDeleteModal({
                     fontWeight: 'bold',
                   }}
                 >
-                  Cancelar
+                  {cancelText}
                 </Text>
               </TouchableOpacity>
 
@@ -122,7 +126,7 @@ export default function ConfirmDeleteModal({
                     fontWeight: 'bold',
                   }}
                 >
-                  Eliminar
+                  {confirmText}
                 </Text>
               </TouchableOpacity>
             </View>

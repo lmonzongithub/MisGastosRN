@@ -9,6 +9,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { onAuthStateChanged, User } from 'firebase/auth';
 
 import { auth } from '../services/firebase';
+import { useLanguage } from '../i18n/LanguageContext';
 
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
@@ -22,6 +23,8 @@ const Stack = createNativeStackNavigator();
 export default function AppNavigator() {
   const [user, setUser] = useState<User | null>(null);
   const [checkingSession, setCheckingSession] = useState(true);
+
+  const { t } = useLanguage();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -46,7 +49,7 @@ export default function AppNavigator() {
         <ActivityIndicator size="large" color="#0B6B2B" />
 
         <Text style={{ color: '#666666' }}>
-          Verificando sesión...
+          {t('navigation.checkingSession')}
         </Text>
       </View>
     );
@@ -61,11 +64,13 @@ export default function AppNavigator() {
         <Stack.Screen
           name="Login"
           component={LoginScreen}
+          options={{ title: t('navigation.login') }}
         />
 
         <Stack.Screen
           name="Register"
           component={RegisterScreen}
+          options={{ title: t('navigation.register') }}
         />
 
         <Stack.Screen
@@ -77,13 +82,13 @@ export default function AppNavigator() {
         <Stack.Screen
           name="ExpenseForm"
           component={ExpenseFormScreen}
-          options={{ title: 'Gasto' }}
+          options={{ title: t('navigation.expenseForm') }}
         />
 
         <Stack.Screen
           name="ExpenseDetail"
           component={ExpenseDetailScreen}
-          options={{ title: 'Detalle del gasto' }}
+          options={{ title: t('navigation.expenseDetail') }}
         />
       </Stack.Navigator>
     </NavigationContainer>

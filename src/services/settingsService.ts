@@ -5,15 +5,18 @@ import {
 } from 'firebase/firestore';
 
 import { auth, db } from './firebase';
+import { Language } from '../i18n/translations';
 
 export type UserSettings = {
   monthlyLimit: number;
   notificationsEnabled: boolean;
+  language: Language;
 };
 
 const DEFAULT_SETTINGS: UserSettings = {
   monthlyLimit: 0,
   notificationsEnabled: false,
+  language: 'es',
 };
 
 function getCurrentUserId(): string {
@@ -53,7 +56,7 @@ export const getUserSettings = async (): Promise<UserSettings> => {
 };
 
 export const saveUserSettings = async (
-  settings: UserSettings
+  settings: Partial<UserSettings>
 ) => {
   const settingsRef = getSettingsRef();
 
