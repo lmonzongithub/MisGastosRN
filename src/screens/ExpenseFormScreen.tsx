@@ -184,6 +184,8 @@ export default function ExpenseFormScreen({ route, navigation }: any) {
 };
 
   const handleSave = async () => {
+    if (gettingLocation) return;
+
     const parsedAmount = Number(amount.replace(',', '.'));
 
     if (description.trim().length === 0) {
@@ -448,9 +450,9 @@ export default function ExpenseFormScreen({ route, navigation }: any) {
 
       <TouchableOpacity
         onPress={handleSave}
-        disabled={loading}
+        disabled={loading || gettingLocation}
         style={{
-          backgroundColor: loading ? '#73A883' : '#0B6B2B',
+          backgroundColor: loading || gettingLocation ? '#73A883' : '#0B6B2B',
           padding: 14,
           borderRadius: 10,
           alignItems: 'center',
