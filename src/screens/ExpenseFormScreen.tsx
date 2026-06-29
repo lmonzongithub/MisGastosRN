@@ -26,6 +26,18 @@ import {
 } from '../utils/categories';
 import { uploadReceipt, ReceiptFile } from '../services/receiptService';
 import { useLanguage } from '../i18n/LanguageContext';
+import {
+  extractAmountFromText,
+  extractTextFromReceiptBase64,
+} from '../services/ocrService';
+ import * as ImagePicker from 'expo-image-picker';
+
+type UploadedReceipt = {
+  receiptUrl: string;
+  receiptName: string;
+  receiptType: string;
+  receiptPath: string;
+};
 
 export default function ExpenseFormScreen({ route, navigation }: any) {
   const { t } = useLanguage();
@@ -42,6 +54,7 @@ export default function ExpenseFormScreen({ route, navigation }: any) {
   const [receiptFile, setReceiptFile] = useState<ReceiptFile | null>(null);
   const [currentReceiptName, setCurrentReceiptName] = useState<string | null>(null);
   const [currentReceiptUrl, setCurrentReceiptUrl] = useState<string | null>(null);
+  const [scanningReceipt, setScanningReceipt] = useState(false);
 
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
@@ -95,7 +108,6 @@ export default function ExpenseFormScreen({ route, navigation }: any) {
       if (result.canceled) return;
 
       const asset = result.assets[0];
-
       const mimeType = asset.mimeType ?? 'application/octet-stream';
 
       if (!mimeType.startsWith('image/') && mimeType !== 'application/pdf') {
@@ -116,6 +128,54 @@ export default function ExpenseFormScreen({ route, navigation }: any) {
       Alert.alert(t('common.error'), t('expenseForm.pickReceiptError'));
     }
   };
+
+  const handleScanReceipt = async () => {
+  try {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 1,
+      base64: true,
+    });
+
+    if (result.canceled) return;
+
+    const asset = result.assets[0];
+
+    if (!asset.base64) {
+      Alert.alert('OCR', 'No se pudo leer la imagen.');
+      return;
+    }
+
+    setScanningReceipt(true);
+
+    const text = await extractTextFromReceiptBase64(asset.base64);
+
+    const detectedAmount = extractAmountFromText(text);
+
+    if (detectedAmount) {
+      setAmount(String(detectedAmount));
+
+      Alert.alert(
+        'OCR',
+        `Monto detectado: $${detectedAmount}`
+      );
+    } else {
+      Alert.alert(
+        'OCR',
+        'No se pudo detectar el monto.'
+      );
+    }
+  } catch (error) {
+    console.log('Error OCR', error);
+
+    Alert.alert(
+      'OCR',
+      'No se pudo leer el comprobante.'
+    );
+  } finally {
+    setScanningReceipt(false);
+  }
+};
 
   const handleUseCurrentLocation = async () => {
     try {
@@ -154,13 +214,8 @@ export default function ExpenseFormScreen({ route, navigation }: any) {
     try {
       const settings = await getUserSettings();
 
-      if (!settings.notificationsEnabled) {
-        return;
-      }
-
-      if (settings.monthlyLimit <= 0) {
-        return;
-      }
+      if (!settings.notificationsEnabled) return;
+      if (settings.monthlyLimit <= 0) return;
 
       const currentMonthlyTotal = await getMonthlyTotal();
 
@@ -181,10 +236,10 @@ export default function ExpenseFormScreen({ route, navigation }: any) {
     } catch (error) {
       console.log('Error al verificar límite mensual', error);
     }
-};
+  };
 
   const handleSave = async () => {
-    if (gettingLocation) return;
+    if (gettingLocation || scanningReceipt) return;
 
     const parsedAmount = Number(amount.replace(',', '.'));
 
@@ -201,7 +256,7 @@ export default function ExpenseFormScreen({ route, navigation }: any) {
     try {
       setLoading(true);
 
-      let uploadedReceipt: Awaited<ReturnType<typeof uploadReceipt>> | null = null;
+      let uploadedReceipt: UploadedReceipt | null = null;
 
       if (receiptFile) {
         uploadedReceipt = await uploadReceipt(receiptFile, expenseId);
@@ -314,13 +369,7 @@ export default function ExpenseFormScreen({ route, navigation }: any) {
         }}
       />
 
-      <Text
-        style={{
-          fontWeight: 'bold',
-          color: '#1F1F1F',
-          marginTop: 8,
-        }}
-      >
+      <Text style={{ fontWeight: 'bold', color: '#1F1F1F', marginTop: 8 }}>
         {t('expenseForm.category')}
       </Text>
 
@@ -388,7 +437,7 @@ export default function ExpenseFormScreen({ route, navigation }: any) {
 
         <TouchableOpacity
           onPress={handlePickReceipt}
-          disabled={loading}
+          disabled={loading || scanningReceipt}
           style={{
             borderWidth: 1,
             borderColor: '#0B6B2B',
@@ -398,11 +447,32 @@ export default function ExpenseFormScreen({ route, navigation }: any) {
           }}
         >
           <Text style={{ color: '#0B6B2B', fontWeight: 'bold' }}>
-            {receiptFile || currentReceiptUrl
-              ? t('expenseForm.changeReceipt')
-              : t('expenseForm.attachReceipt')}
+            {scanningReceipt
+              ? 'Leyendo comprobante...'
+              : receiptFile || currentReceiptUrl
+                ? t('expenseForm.changeReceipt')
+                : t('expenseForm.attachReceipt')}
           </Text>
         </TouchableOpacity>
+
+        <TouchableOpacity
+  onPress={handleScanReceipt}
+  disabled={loading || scanningReceipt}
+  style={{
+    borderWidth: 1,
+    borderColor: '#0B6B2B',
+    padding: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginTop: 8,
+  }}
+>
+  <Text style={{ color: '#0B6B2B', fontWeight: 'bold' }}>
+    {scanningReceipt
+      ? 'Leyendo comprobante...'
+      : 'Escanear comprobante OCR'}
+  </Text>
+</TouchableOpacity>
       </View>
 
       <Text style={{ fontWeight: 'bold', color: '#1F1F1F', marginTop: 8 }}>
@@ -450,9 +520,10 @@ export default function ExpenseFormScreen({ route, navigation }: any) {
 
       <TouchableOpacity
         onPress={handleSave}
-        disabled={loading || gettingLocation}
+        disabled={loading || gettingLocation || scanningReceipt}
         style={{
-          backgroundColor: loading || gettingLocation ? '#73A883' : '#0B6B2B',
+          backgroundColor:
+            loading || gettingLocation || scanningReceipt ? '#73A883' : '#0B6B2B',
           padding: 14,
           borderRadius: 10,
           alignItems: 'center',
